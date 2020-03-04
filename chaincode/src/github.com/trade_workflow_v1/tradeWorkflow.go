@@ -178,6 +178,22 @@ func (t *TradeWorkflowChaincode) requestTrade(stub shim.ChaincodeStubInterface, 
 	var err error
 
 	// ADD TRADELIMIT RETRIEVAL HERE
+	var tradelimit int
+	var attribute = "tradelimit"
+	var value string
+	var found bool
+	value, found, err = getCustomAttribute(stub, attribute)
+	if found {
+		fmt.Printf("Custom attribute %s was found with value %s\n", attribute, value)
+
+		tradelimit, err = strconv.Atoi(string(value))
+		if err != nil {
+			return shim.Error(err.Error())
+		}
+	} else {
+		fmt.Printf("Custom attribute %s was not found\n", attribute)
+		tradelimit=1000000
+	}
 
 	// Access control: Only an Importer Org member can invoke this transaction
 	if !t.testMode && !authenticateImporterOrg(creatorOrg, creatorCertIssuer) {
@@ -195,6 +211,10 @@ func (t *TradeWorkflowChaincode) requestTrade(stub shim.ChaincodeStubInterface, 
 	}
 
 	// ADD TRADE LIMIT CHECK HERE 
+	if (amount > tradelimit) {
+		err = errors.New(fmt.Sprintf("Caller trade limit authorization is set at %d. Access denied.", tradelimit))
+		return shim.Error(err.Error())
+	}
 	
 	tradeAgreement = &TradeAgreement{amount, args[2], REQUESTED, 0}
 	tradeAgreementBytes, err = json.Marshal(tradeAgreement)
@@ -1318,7 +1338,7 @@ func (t *TradeWorkflowChaincode) getAccountBalance(stub shim.ChaincodeStubInterf
 
 func main() {
 	twc := new(TradeWorkflowChaincode)
-	twc.testMode = false
+	twc.testMode = true
 	err := shim.Start(twc)
 	if err != nil {
 		fmt.Printf("Error starting Trade Workflow chaincode: %s", err)

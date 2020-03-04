@@ -23,6 +23,19 @@ import (
 	"crypto/x509"
 )
 
+func getCustomAttribute(stub shim.ChaincodeStubInterface, attr string) (string, bool, error) {
+	var value string
+	var found bool
+	var err error
+
+	value, found, err = cid.GetAttributeValue(stub, attr)
+	if err != nil {
+		fmt.Printf("Error getting MSP identity: %s\n", err.Error())
+		return "", found, err
+	}
+
+	return value, found, nil
+}
 
 func getTxCreatorInfo(stub shim.ChaincodeStubInterface) (string, string, error) {
 	var mspid string
