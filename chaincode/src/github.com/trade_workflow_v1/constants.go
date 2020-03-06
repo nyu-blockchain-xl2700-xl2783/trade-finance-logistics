@@ -24,6 +24,9 @@ const (
 	impKey		= "Importer"
 	ibKey		= "ImportersBank"
 	impBalKey	= "ImportersAccountBalance"
+	lenKey		= "Lender"
+	lbKey		= "LendersBank"
+	lenBalKey	= "LendersAccountBalance"
 	carKey		= "Carrier"
 	raKey		= "RegulatoryAuthority"
 )
@@ -32,6 +35,7 @@ const (
 const (
 	REQUESTED	= "REQUESTED"
 	ISSUED		= "ISSUED"
+	TRANSFERRED	= "TRANSFERRED"
 	ACCEPTED	= "ACCEPTED"
 )
 

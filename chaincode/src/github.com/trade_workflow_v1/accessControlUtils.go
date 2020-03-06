@@ -60,6 +60,10 @@ func getTxCreatorInfo(stub shim.ChaincodeStubInterface) (string, string, error) 
 // For now, just hardcode an ACL
 // We will support attribute checks in an upgrade
 
+func authenticateLenderOrg(mspID string, certCN string) bool {
+	return (mspID == "LenderOrgMSP") && (certCN == "ca.lenderorg.trade.com")
+}
+
 func authenticateExportingEntityOrg(mspID string, certCN string) bool {
 	return (mspID == "ExportingEntityOrgMSP") && (certCN == "ca.exportingentityorg.trade.com")
 }
