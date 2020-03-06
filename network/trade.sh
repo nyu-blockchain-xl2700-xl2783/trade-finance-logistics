@@ -186,7 +186,7 @@ function networkUp () {
 function newOrgNetworkUp () {
   checkPrereqs
   # generate artifacts if they don't exist
-  if [ ! -d "crypto-config/peerOrganizations/exportingentityorg.trade.com" ]; then
+  if [ ! -d "crypto-config/peerOrganizations/lenderorg.trade.com" ]; then
     generateCertsForNewOrg
     replacePrivateKeyForNewOrg
     generateChannelConfigForNewOrg
@@ -277,7 +277,7 @@ function networkDown () {
 function newOrgNetworkDown () {
   docker-compose -f $COMPOSE_FILE_NEW_ORG down --volumes
 
-  for PEER in peer0.exportingentityorg.trade.com; do
+  for PEER in peer0.lenderorg.trade.com; do
     # Remove any old containers and images for this peer
     CC_CONTAINERS=$(docker ps -a | grep dev-$PEER | awk '{print $1}')
     if [ -n "$CC_CONTAINERS" ] ; then
@@ -299,7 +299,7 @@ function networkClean () {
   # remove orderer block and other channel configuration transactions and certs
   rm -rf channel-artifacts crypto-config add_org/crypto-config
   # remove the docker-compose yaml file that was customized to the example
-  rm -f docker-compose-e2e.yaml add_org/docker-compose-exportingEntityOrg.yaml
+  rm -f docker-compose-e2e.yaml add_org/docker-compose-lenderOrg.yaml
   # remove client certs 
   rm -rf client-certs
   if [ "$DEV_MODE" = true ] ; then
@@ -370,18 +370,18 @@ function replacePrivateKey () {
 
 function replacePrivateKeyForNewOrg () {
   # Copy the template to the file that will be modified to add the private key
-  cp add_org/docker-compose-exportingEntityOrg-template.yaml add_org/docker-compose-exportingEntityOrg.yaml
+  cp add_org/docker-compose-lenderOrg-template.yaml add_org/docker-compose-lenderOrg.yaml
 
   # The next steps will replace the template's contents with the
   # actual values of the private key file names for the two CAs.
   CURRENT_DIR=$PWD
-  cd crypto-config/peerOrganizations/exportingentityorg.trade.com/ca/
+  cd crypto-config/peerOrganizations/lenderorg.trade.com/ca/
   PRIV_KEY=$(ls *_sk)
   cd "$CURRENT_DIR"
   if [ $(uname -s) == 'Darwin' ] ; then
-    sed -i '' "s/EXPORTINGENTITY_CA_PRIVATE_KEY/${PRIV_KEY}/g" add_org/docker-compose-exportingEntityOrg.yaml
+    sed -i '' "s/LENDER_CA_PRIVATE_KEY/${PRIV_KEY}/g" add_org/docker-compose-lenderOrg.yaml
   else
-    sed -i "s/EXPORTINGENTITY_CA_PRIVATE_KEY/${PRIV_KEY}/g" add_org/docker-compose-exportingEntityOrg.yaml
+    sed -i "s/LENDER_CA_PRIVATE_KEY/${PRIV_KEY}/g" add_org/docker-compose-lenderOrg.yaml
   fi
 }
 
@@ -446,8 +446,8 @@ function generateCertsForNewOrg (){
   echo "##### Generate certificates for new org using cryptogen tool #########"
   echo "######################################################################"
 
-  if [ -d "crypto-config/peerOrganizations/exportingentityorg.trade.com" ]; then
-    rm -Rf crypto-config/peerOrganizations/exportingentityorg.trade.com
+  if [ -d "crypto-config/peerOrganizations/lenderorg.trade.com" ]; then
+    rm -Rf crypto-config/peerOrganizations/lenderorg.trade.com
   fi
   set -x
   cryptogen generate --config=./add_org/crypto-config.yaml
@@ -612,14 +612,14 @@ function generateChannelConfigForNewOrg() {
   mkdir -p channel-artifacts
 
   echo "####################################################################################"
-  echo "#########  Generating Channel Configuration for Exporting Entity Org  ##############"
+  echo "#########  Generating Channel Configuration for Lender Org  ##############"
   echo "####################################################################################"
   set -x
-  FABRIC_CFG_PATH=${PWD}/add_org/ && configtxgen -printOrg ExportingEntityOrgMSP -channelID $CHANNEL_NAME > ./channel-artifacts/exportingEntityOrg.json
+  FABRIC_CFG_PATH=${PWD}/add_org/ && configtxgen -printOrg LenderOrgMSP -channelID $CHANNEL_NAME > ./channel-artifacts/lenderOrg.json
   res=$?
   set +x
   if [ $res -ne 0 ]; then
-    echo "Failed to generate channel configuration for exportingentity org..."
+    echo "Failed to generate channel configuration for lender org..."
     exit 1
   fi
   echo
@@ -629,7 +629,7 @@ function generateChannelConfigForNewOrg() {
 CHANNEL_NAME="tradechannel"
 # use this as the default docker-compose yaml definition
 COMPOSE_FILE=docker-compose-e2e.yaml
-COMPOSE_FILE_NEW_ORG=add_org/docker-compose-exportingEntityOrg.yaml
+COMPOSE_FILE_NEW_ORG=add_org/docker-compose-lenderOrg.yaml
 # default image tag
 IMAGETAG="latest"
 # default log file

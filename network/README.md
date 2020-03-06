@@ -70,28 +70,26 @@ Run `./trade.sh down`
 
 
 # Add a New Organization
-We can add a new organization called _exporting entity_ as illustrated in the figure below.
-
-![alt text](../docs/Augmented-Network.png)
+We can add a new organization called _lender_.
 
 # Configuration
 - `add_org/configtxgen.yaml`: defines the organization and network structure to generate channel configuration
 - `add_org/crypto-config.yaml`: defines the organization users to create keys and certificates for peers and clients
-- `add_org/docker-compose-exportingEntityOrg-template.yaml`: defines a template for the network structure of the new organization, with container specifications for the MSP and peer
+- `add_org/docker-compose-lenderOrg-template.yaml`: defines a template for the network structure of the new organization, with container specifications for the MSP and peer
 _Note_: The instructions and the `trade.sh` script, and the code in the [middleware](../middleware/) folders, depend on the currently defined configuration. If you edit the above files, you will need to modify the code accordingly.
 
 # Build Channel Configuration, Crypto Artifacts, and Network Structure, for the New Organization
+**Note:** if your network has been stopped, first start it using `./trade.sh up` 
 Run `./trade.sh createneworg`   
 The following files and folders should be created:
-- `channel-artifacts/exportingEntityOrg.json`: contains polices and certificates for the new organization
-- `crypto-config/peerOrganizations/exportingentityorg.trade.com/`: contains crypto material for the network peers and clients
-- `add_org/docker-compose-exportingEntityOrg.yaml`: network configuration file to launch using the `docker-compose` tool.
+- `channel-artifacts/lenderOrg.json`: contains polices and certificates for the new organization
+- `crypto-config/peerOrganizations/lenderorg.trade.com/`: contains crypto material for the network peers and clients
+- `add_org/docker-compose-lenderOrg.yaml`: network configuration file to launch using the `docker-compose` tool.
 
 # Launch the Network Components of the New Organization
-**Note:** if your network has been stopped, first start it using `./trade.sh up`  
 Run `./trade.sh startneworg`  
 - This runs the network as a background process, and logs the output to `logs/network-neworg.log`.
-- Alternatively, you can manually start the network as a foreground process: `docker-compose -f add_org/docker-compose-exportingEntityOrg.yaml up`.
+- Alternatively, you can manually start the network as a foreground process: `docker-compose -f add_org/docker-compose-lenderOrg.yaml up`.
 - You can view the network logs (from all the containers) in the foreground.
 
 # Bring Down the Network Components of the New Organization

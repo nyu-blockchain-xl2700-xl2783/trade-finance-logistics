@@ -19,10 +19,10 @@
 # ---------------------------------------------------------------------------
 PeerOrgs:
   # ---------------------------------------------------------------------------
-  # ExportingEntityOrg
+  # LenderOrg
   # ---------------------------------------------------------------------------
-  - Name: ExportingEntityOrg
-    Domain: exportingentityorg.trade.com
+  - Name: LenderOrg
+    Domain: lenderorg.trade.com
     EnableNodeOUs: true
     Template:
       Count: 1
