@@ -43,14 +43,17 @@ func (t *TradeWorkflowChaincode) Init(stub shim.ChaincodeStubInterface) pb.Respo
 	}
 
 	// Upgrade mode 2: change all the names and account balances
-	if len(args) != 8 {
+	if len(args) != 11 {
 		err = errors.New(fmt.Sprintf("Incorrect number of arguments. Expecting 8: {" +
 					     "Exporter, " +
 					     "Exporter's Bank, " +
 					     "Exporter's Account Balance, " +
 					     "Importer, " +
 					     "Importer's Bank, " +
-					     "Importer's Account Balance, " +
+						 "Importer's Account Balance, " +
+						 "Lender, " +
+					     "Lender's Bank, " +
+					     "Lender's Account Balance, " +
 					     "Carrier, " +
 					     "Regulatory Authority" +
 					     "}. Found %d", len(args)))
@@ -68,6 +71,11 @@ func (t *TradeWorkflowChaincode) Init(stub shim.ChaincodeStubInterface) pb.Respo
 		fmt.Printf("Importer's account balance must be an integer. Found %s\n", args[5])
 		return shim.Error(err.Error())
 	}
+	_, err = strconv.Atoi(string(args[8]))
+	if err != nil {
+		fmt.Printf("Lender's account balance must be an integer. Found %s\n", args[5])
+		return shim.Error(err.Error())
+	}
 
 	fmt.Printf("Exporter: %s\n", args[0])
 	fmt.Printf("Exporter's Bank: %s\n", args[1])
@@ -75,11 +83,14 @@ func (t *TradeWorkflowChaincode) Init(stub shim.ChaincodeStubInterface) pb.Respo
 	fmt.Printf("Importer: %s\n", args[3])
 	fmt.Printf("Importer's Bank: %s\n", args[4])
 	fmt.Printf("Importer's Account Balance: %s\n", args[5])
-	fmt.Printf("Carrier: %s\n", args[6])
-	fmt.Printf("Regulatory Authority: %s\n", args[7])
+	fmt.Printf("Lender: %s\n", args[6])
+	fmt.Printf("Lender's Bank: %s\n", args[7])
+	fmt.Printf("Lender's Account Balance: %s\n", args[8])
+	fmt.Printf("Carrier: %s\n", args[9])
+	fmt.Printf("Regulatory Authority: %s\n", args[10])
 
 	// Map participant identities to their roles on the ledger
-	roleKeys := []string{ expKey, ebKey, expBalKey, impKey, ibKey, impBalKey, carKey, raKey }
+	roleKeys := []string{ expKey, ebKey, expBalKey, impKey, ibKey, impBalKey, lenKey, lbKey, lenBalKey, carKey, raKey }
 	for i, roleKey := range roleKeys {
 		err = stub.PutState(roleKey, []byte(args[i]))
 		if err != nil {
@@ -122,6 +133,15 @@ func (t *TradeWorkflowChaincode) Invoke(stub shim.ChaincodeStubInterface) pb.Res
 	} else if function == "acceptLC" {
 		// Exporter's Bank accepts an L/C
 		return t.acceptLC(stub, creatorOrg, creatorCertIssuer, args)
+	} else if function == "requestLCTransfer" {
+		// Importer requests an L/C
+		return t.requestLCTransfer(stub, creatorOrg, creatorCertIssuer, args)
+	} else if function == "issueLCTransfer" {
+		// Importer's Bank issues an L/C
+		return t.issueLCTransfer(stub, creatorOrg, creatorCertIssuer, args)
+	} else if function == "acceptLCTransferAndMakePayment" {
+		// Exporter's Bank accepts an L/C
+		return t.acceptLCTransferAndMakePayment(stub, creatorOrg, creatorCertIssuer, args)
 	} else if function == "requestEL" {
 		// Exporter requests an E/L
 		return t.requestEL(stub, creatorOrg, creatorCertIssuer, args)
@@ -243,9 +263,9 @@ func (t *TradeWorkflowChaincode) acceptTrade(stub shim.ChaincodeStubInterface, c
 	var tradeAgreementBytes []byte
 	var err error
 
-	// Access control: Only an Exporting Entity Org member can invoke this transaction
-	if !t.testMode && !authenticateExportingEntityOrg(creatorOrg, creatorCertIssuer) {
-		return shim.Error("Caller not a member of Exporting Entity Org. Access denied.")
+	// Access control: Only an Exporter Org member can invoke this transaction
+	if !t.testMode && !authenticateExporterOrg(creatorOrg, creatorCertIssuer) {
+		return shim.Error("Caller not a member of Exporter Org. Access denied.")
 	}
 
 	if len(args) != 1 {
@@ -343,7 +363,7 @@ func (t *TradeWorkflowChaincode) requestLC(stub shim.ChaincodeStubInterface, cre
 		return shim.Error(err.Error())
 	}
 
-	letterOfCredit = &LetterOfCredit{"", "", string(exporterBytes), tradeAgreement.Amount, []string{}, REQUESTED}
+	letterOfCredit = &LetterOfCredit{"", "", string(exporterBytes), tradeAgreement.Amount, []string{}, REQUESTED, 0.0}
 	letterOfCreditBytes, err = json.Marshal(letterOfCredit)
 	if err != nil {
 		return shim.Error("Error marshaling letter of credit structure")
@@ -401,6 +421,8 @@ func (t *TradeWorkflowChaincode) issueLC(stub shim.ChaincodeStubInterface, creat
 		fmt.Printf("L/C for trade %s already issued", args[0])
 	} else if letterOfCredit.Status == ACCEPTED {
 		fmt.Printf("L/C for trade %s already accepted", args[0])
+	} else if letterOfCredit.Status == TRANSFER_REQUESTED || letterOfCredit.Status == TRANSFER_ISSUED || letterOfCredit.Status == TRANSFER_ACCEPTED {
+		fmt.Printf("L/C for trade %s already transferred", args[0])
 	} else {
 		letterOfCredit.Id = args[1]
 		letterOfCredit.ExpirationDate = args[2]
@@ -456,6 +478,8 @@ func (t *TradeWorkflowChaincode) acceptLC(stub shim.ChaincodeStubInterface, crea
 
 	if letterOfCredit.Status == ACCEPTED {
 		fmt.Printf("L/C for trade %s already accepted", args[0])
+	} else if letterOfCredit.Status == TRANSFER_REQUESTED || letterOfCredit.Status == TRANSFER_ISSUED || letterOfCredit.Status == TRANSFER_ACCEPTED {
+		fmt.Printf("L/C for trade %s already transferred", args[0])
 	} else if letterOfCredit.Status == REQUESTED {
 		fmt.Printf("L/C for trade %s has not been issued", args[0])
 		return shim.Error("L/C not issued yet")
@@ -485,9 +509,9 @@ func (t *TradeWorkflowChaincode) requestEL(stub shim.ChaincodeStubInterface, cre
 	var exportLicense *ExportLicense
 	var err error
 
-	// Access control: Only an Exporting Entity Org member can invoke this transaction
-	if !t.testMode && !authenticateExportingEntityOrg(creatorOrg, creatorCertIssuer) {
-		return shim.Error("Caller not a member of Exporting Entity Org. Access denied.")
+	// Access control: Only an Exporter Org member can invoke this transaction
+	if !t.testMode && !authenticateExporterOrg(creatorOrg, creatorCertIssuer) {
+		return shim.Error("Caller not a member of Exporter Org. Access denied.")
 	}
 
 	if len(args) != 1 {
@@ -644,9 +668,9 @@ func (t *TradeWorkflowChaincode) prepareShipment(stub shim.ChaincodeStubInterfac
 	var exportLicense *ExportLicense
 	var err error
 
-	// Access control: Only an Exporting Entity Org member can invoke this transaction
-	if !t.testMode && !authenticateExportingEntityOrg(creatorOrg, creatorCertIssuer) {
-		return shim.Error("Caller not a member of Exporting Entity Org. Access denied.")
+	// Access control: Only an Exporter Org member can invoke this transaction
+	if !t.testMode && !authenticateExporterOrg(creatorOrg, creatorCertIssuer) {
+		return shim.Error("Caller not a member of Exporter Org. Access denied.")
 	}
 
 	if len(args) != 1 {
@@ -782,7 +806,7 @@ func (t *TradeWorkflowChaincode) acceptShipmentAndIssueBL(stub shim.ChaincodeStu
 		return shim.Error(err.Error())
 	}
 
-	// Lookup importer's bank (beneficiary of the title to goods after paymen tis made)
+	// Lookup importer's bank (beneficiary of the title to goods after payment is made)
 	beneficiaryBytes, err = stub.GetState(ibKey)
 	if err != nil {
 		return shim.Error(err.Error())
@@ -810,6 +834,342 @@ func (t *TradeWorkflowChaincode) acceptShipmentAndIssueBL(stub shim.ChaincodeStu
 	return shim.Success(nil)
 }
 
+// Request an L/C Transfer to Lender Org
+func (t *TradeWorkflowChaincode) requestLCTransfer(stub shim.ChaincodeStubInterface, creatorOrg string, creatorCertIssuer string, args []string) pb.Response {
+	var lcKey, paymentKey, shipmentLocationKey string
+	var letterOfCreditBytes, lenderBytes, paymentBytes, shipmentLocationBytes []byte
+	var discountRate float64
+	var letterOfCredit *LetterOfCredit
+	var err error
+
+	// Access control: Only an Exporter Org member can invoke this transaction
+	if !t.testMode && !authenticateExporterOrg(creatorOrg, creatorCertIssuer) {
+		return shim.Error("Caller not a member of Exporter Org. Access denied.")
+	}
+
+	if len(args) != 2 {
+		err = errors.New(fmt.Sprintf("Incorrect number of arguments. Expecting 2: {Trade ID, DiscountRate}. Found %d", len(args)))
+		return shim.Error(err.Error())
+	}
+
+	// Lookup L/C from the ledger
+	lcKey, err = getLCKey(stub, args[0])
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+	letterOfCreditBytes, err = stub.GetState(lcKey)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	// Unmarshal the JSON
+	err = json.Unmarshal(letterOfCreditBytes, &letterOfCredit)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	// Lookup lender (L/C beneficiary)
+	lenderBytes, err = stub.GetState(lenKey)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	// Check if there's a pending payment request
+	paymentKey, err = getPaymentKey(stub, args[0])
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+	paymentBytes, err = stub.GetState(paymentKey)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	if len(paymentBytes) != 0 {
+		fmt.Printf("Payment request pending for trade %s", args[0])
+		return shim.Error("Payment request pending")
+	}
+
+	// Lookup shipment location from the ledger
+	shipmentLocationKey, err = getShipmentLocationKey(stub, args[0])
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	shipmentLocationBytes, err = stub.GetState(shipmentLocationKey)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	if len(shipmentLocationBytes) == 0 {
+		fmt.Printf("Shipment for trade %s has not been prepared yet", args[0])
+		return shim.Error("Shipment not prepared yet")
+	}
+
+	// Parse discount rate
+	discountRate, err = strconv.ParseFloat(string(args[1]), 2)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	// Check if there is available amount of credit
+	if letterOfCredit.Amount <= 0 {
+		fmt.Printf("L/C for trade %s doesn't have available amount of credit", args[0])
+		return shim.Error("L/C no available amount of credit")
+	}
+
+	if letterOfCredit.Status == REQUESTED || letterOfCredit.Status == ISSUED {
+		fmt.Printf("L/C for trade %s has not been accepted", args[0])
+		return shim.Error("L/C not accepted yet")
+	} else if letterOfCredit.Status == TRANSFER_REQUESTED {
+		fmt.Printf("L/C transfer for trade %s already requested", args[0])
+	} else if letterOfCredit.Status == TRANSFER_ISSUED {
+		fmt.Printf("L/C transfer for trade %s already issued", args[0])
+	} else if letterOfCredit.Status == TRANSFER_ACCEPTED {
+		fmt.Printf("L/C transfer for trade %s already accepted", args[0])
+	} else {
+		letterOfCredit.Beneficiary = string(lenderBytes)
+		letterOfCredit.DiscountRate = float32(discountRate)
+		letterOfCredit.Status = TRANSFER_REQUESTED
+		letterOfCreditBytes, err = json.Marshal(letterOfCredit)
+		if err != nil {
+			return shim.Error("Error marshaling L/C structure")
+		}
+		// Write the state to the ledger
+		err = stub.PutState(lcKey, letterOfCreditBytes)
+		if err != nil {
+			return shim.Error(err.Error())
+		}
+	}
+	fmt.Printf("L/C transfer request for trade %s recorded\n", args[0])
+
+	return shim.Success(nil)
+}
+
+// Transfer an L/C
+func (t *TradeWorkflowChaincode) issueLCTransfer(stub shim.ChaincodeStubInterface, creatorOrg string, creatorCertIssuer string, args []string) pb.Response {
+	var lcKey, paymentKey, shipmentLocationKey string
+	var letterOfCreditBytes, paymentBytes, shipmentLocationBytes []byte
+	var letterOfCredit *LetterOfCredit
+	var err error
+
+	// Access control: Only an Exporter Org member can invoke this transaction
+	if !t.testMode && !authenticateExporterOrg(creatorOrg, creatorCertIssuer) {
+		return shim.Error("Caller not a member of Exporter Org. Access denied.")
+	}
+
+	if len(args) != 1 {
+		err = errors.New(fmt.Sprintf("Incorrect number of arguments. Expecting 1: {Trade ID}. Found %d", len(args)))
+		return shim.Error(err.Error())
+	}
+
+	// Lookup L/C from the ledger
+	lcKey, err = getLCKey(stub, args[0])
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+	letterOfCreditBytes, err = stub.GetState(lcKey)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	// Unmarshal the JSON
+	err = json.Unmarshal(letterOfCreditBytes, &letterOfCredit)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	// Check if there's a pending payment request
+	paymentKey, err = getPaymentKey(stub, args[0])
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+	paymentBytes, err = stub.GetState(paymentKey)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	if len(paymentBytes) != 0 {
+		fmt.Printf("Payment request pending for trade %s", args[0])
+		return shim.Error("Payment request pending")
+	}
+
+	// Lookup shipment location from the ledger
+	shipmentLocationKey, err = getShipmentLocationKey(stub, args[0])
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	shipmentLocationBytes, err = stub.GetState(shipmentLocationKey)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	if len(shipmentLocationBytes) == 0 {
+		fmt.Printf("Shipment for trade %s has not been prepared yet", args[0])
+		return shim.Error("Shipment not prepared yet")
+	}
+
+	// Check if there is available amount of credit
+	if letterOfCredit.Amount <= 0 {
+		fmt.Printf("L/C for trade %s doesn't have available amount of credit", args[0])
+		return shim.Error("L/C no available amount of credit")
+	}
+
+	if letterOfCredit.Status == REQUESTED || letterOfCredit.Status == ISSUED || letterOfCredit.Status == ACCEPTED {
+		fmt.Printf("L/C transfer for trade %s has not been requested", args[0])
+		return shim.Error("L/C transfer not requested yet")
+	} else if letterOfCredit.Status == TRANSFER_ISSUED {
+		fmt.Printf("L/C transfer for trade %s already issued", args[0])
+	} else if letterOfCredit.Status == TRANSFER_ACCEPTED {
+		fmt.Printf("L/C transfer for trade %s already accepted", args[0])
+	} else {
+		letterOfCredit.Status = TRANSFER_ISSUED
+		letterOfCreditBytes, err = json.Marshal(letterOfCredit)
+		if err != nil {
+			return shim.Error("Error marshaling L/C structure")
+		}
+		// Write the state to the ledger
+		err = stub.PutState(lcKey, letterOfCreditBytes)
+		if err != nil {
+			return shim.Error(err.Error())
+		}
+	}
+	fmt.Printf("L/C transfer issuance for trade %s recorded\n", args[0])
+
+	return shim.Success(nil)
+}
+
+// Accept an L/C transfer and make an advance payment
+func (t *TradeWorkflowChaincode) acceptLCTransferAndMakePayment(stub shim.ChaincodeStubInterface, creatorOrg string, creatorCertIssuer string, args []string) pb.Response {
+	var lcKey, paymentKey, shipmentLocationKey string
+	var paymentAmount, expBal, lenBal int
+	var fullRate float32
+	var letterOfCreditBytes, paymentBytes, shipmentLocationBytes, expBalBytes, lenBalBytes []byte
+	var letterOfCredit *LetterOfCredit
+	var err error
+
+	// Access control: Only an Lender Org member can invoke this transaction
+	if !t.testMode && !authenticateLenderOrg(creatorOrg, creatorCertIssuer) {
+		return shim.Error("Caller not a member of Lender Org. Access denied.")
+	}
+
+	if len(args) != 1 {
+		err = errors.New(fmt.Sprintf("Incorrect number of arguments. Expecting 1: {Trade ID}. Found %d", len(args)))
+		return shim.Error(err.Error())
+	}
+
+	// Lookup L/C from the ledger
+	lcKey, err = getLCKey(stub, args[0])
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+	letterOfCreditBytes, err = stub.GetState(lcKey)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	// Unmarshal the JSON
+	err = json.Unmarshal(letterOfCreditBytes, &letterOfCredit)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	// Check if there's a pending payment request
+	paymentKey, err = getPaymentKey(stub, args[0])
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+	paymentBytes, err = stub.GetState(paymentKey)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	if len(paymentBytes) != 0 {
+		fmt.Printf("Payment request pending for trade %s", args[0])
+		return shim.Error("Payment request pending")
+	}
+
+	// Lookup shipment location from the ledger
+	shipmentLocationKey, err = getShipmentLocationKey(stub, args[0])
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	shipmentLocationBytes, err = stub.GetState(shipmentLocationKey)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	if len(shipmentLocationBytes) == 0 {
+		fmt.Printf("Shipment for trade %s has not been prepared yet", args[0])
+		return shim.Error("Shipment not prepared yet")
+	}
+
+	// Check if there is available amount of credit
+	if letterOfCredit.Amount <= 0 {
+		fmt.Printf("L/C for trade %s doesn't have available amount of credit", args[0])
+		return shim.Error("L/C no available amount of credit")
+	}
+
+	if letterOfCredit.Status == REQUESTED || letterOfCredit.Status == ISSUED || letterOfCredit.Status == ACCEPTED || letterOfCredit.Status == TRANSFER_REQUESTED {
+		fmt.Printf("L/C transfer for trade %s has not been requested", args[0])
+		return shim.Error("L/C transfer not requested yet")
+	} else if letterOfCredit.Status == TRANSFER_ACCEPTED {
+		fmt.Printf("L/C transfer for trade %s already accepted", args[0])
+	} else {
+		// Lookup account balances
+		expBalBytes, err = stub.GetState(expBalKey)
+		if err != nil {
+			return shim.Error(err.Error())
+		}
+		expBal, err = strconv.Atoi(string(expBalBytes))
+		if err != nil {
+			return shim.Error(err.Error())
+		}
+		lenBalBytes, err = stub.GetState(lenBalKey)
+		if err != nil {
+			return shim.Error(err.Error())
+		}
+		lenBal, err = strconv.Atoi(string(lenBalBytes))
+		if err != nil {
+			return shim.Error(err.Error())
+		}
+
+		// Record transfer of funds
+		fullRate = 1.0
+		paymentAmount = int((fullRate - letterOfCredit.DiscountRate) * float32(letterOfCredit.Amount))
+		expBal += paymentAmount
+		if lenBal < paymentAmount {
+			fmt.Printf("Lender's bank balance %d is insufficient to cover payment amount %d\n", lenBal, paymentAmount)
+		}
+		lenBal -= paymentAmount
+
+		// Update ledger state
+		err = stub.PutState(expBalKey, []byte(strconv.Itoa(expBal)))
+		if err != nil {
+			return shim.Error(err.Error())
+		}
+		err = stub.PutState(lenBalKey, []byte(strconv.Itoa(lenBal)))
+		if err != nil {
+			return shim.Error(err.Error())
+		}
+
+		// Update L/C
+		letterOfCredit.Status = TRANSFER_ACCEPTED
+		letterOfCreditBytes, err = json.Marshal(letterOfCredit)
+		if err != nil {
+			return shim.Error("Error marshaling L/C structure")
+		}
+		err = stub.PutState(lcKey, letterOfCreditBytes)
+		if err != nil {
+			return shim.Error(err.Error())
+		}
+	}
+	fmt.Printf("L/C transfer acceptance for trade %s recorded\n", args[0])
+
+	return shim.Success(nil)
+}
+
 // Request a payment
 func (t *TradeWorkflowChaincode) requestPayment(stub shim.ChaincodeStubInterface, creatorOrg string, creatorCertIssuer string, args []string) pb.Response {
 	var shipmentLocationKey, paymentKey, tradeKey string
@@ -817,9 +1177,9 @@ func (t *TradeWorkflowChaincode) requestPayment(stub shim.ChaincodeStubInterface
 	var tradeAgreement *TradeAgreement
 	var err error
 
-	// Access control: Only an Exporting Entity Org member can invoke this transaction
-	if !t.testMode && !authenticateExportingEntityOrg(creatorOrg, creatorCertIssuer) {
-		return shim.Error("Caller not a member of Exporting Entity Org. Access denied.")
+	// Access control: Only an Exporter or Lender Org member can invoke this transaction
+	if !t.testMode && !(authenticateExporterOrg(creatorOrg, creatorCertIssuer) || authenticateLenderOrg(creatorOrg, creatorCertIssuer)) {
+		return shim.Error("Caller not a member of Exporter or Lender Org. Access denied.")
 	}
 
 	if len(args) != 1 {
@@ -900,9 +1260,10 @@ func (t *TradeWorkflowChaincode) requestPayment(stub shim.ChaincodeStubInterface
 
 // Make a payment
 func (t *TradeWorkflowChaincode) makePayment(stub shim.ChaincodeStubInterface, creatorOrg string, creatorCertIssuer string, args []string) pb.Response {
-	var shipmentLocationKey, paymentKey, tradeKey string
-	var paymentAmount, expBal, impBal int
-	var shipmentLocationBytes, paymentBytes, tradeAgreementBytes, impBalBytes, expBalBytes []byte
+	var lcKey, shipmentLocationKey, paymentKey, tradeKey string
+	var paymentAmount, expBal, impBal, lenBal int
+	var letterOfCreditBytes, shipmentLocationBytes, paymentBytes, tradeAgreementBytes, exporterBytes, lenderBytes, impBalBytes, expBalBytes, lenBalBytes []byte
+	var letterOfCredit *LetterOfCredit
 	var tradeAgreement *TradeAgreement
 	var err error
 
@@ -952,6 +1313,34 @@ func (t *TradeWorkflowChaincode) makePayment(stub shim.ChaincodeStubInterface, c
 		return shim.Error(err.Error())
 	}
 
+	// Lookup L/C from the ledger
+	lcKey, err = getLCKey(stub, args[0])
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+	letterOfCreditBytes, err = stub.GetState(lcKey)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	// Unmarshal the JSON
+	err = json.Unmarshal(letterOfCreditBytes, &letterOfCredit)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	// Lookup exporter
+	exporterBytes, err = stub.GetState(expKey)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	// Lookup lender
+	lenderBytes, err = stub.GetState(lenKey)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
 	// Lookup shipment location from the ledger
 	shipmentLocationKey, err = getShipmentLocationKey(stub, args[0])
 	if err != nil {
@@ -985,15 +1374,31 @@ func (t *TradeWorkflowChaincode) makePayment(stub shim.ChaincodeStubInterface, c
 	if err != nil {
 		return shim.Error(err.Error())
 	}
+	lenBalBytes, err = stub.GetState(lenBalKey)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+	lenBal, err = strconv.Atoi(string(lenBalBytes))
+	if err != nil {
+		return shim.Error(err.Error())
+	}
 
 	// Record transfer of funds
 	if string(shipmentLocationBytes) == SOURCE {
-		paymentAmount = tradeAgreement.Amount/2
+		paymentAmount = tradeAgreement.Amount / 2
 	} else {
 		paymentAmount = tradeAgreement.Amount - tradeAgreement.Payment
 	}
 	tradeAgreement.Payment += paymentAmount
-	expBal += paymentAmount
+	letterOfCredit.Amount -= paymentAmount
+	if string(exporterBytes) == letterOfCredit.Beneficiary {
+		expBal += paymentAmount
+	} else if string(lenderBytes) == letterOfCredit.Beneficiary {
+		lenBal += paymentAmount
+	} else {
+		fmt.Printf("L/C for trade %s does not have vaild beneficiary (exporter: %s, lender: %s, current: %s)", args[0], string(exporterBytes), string(lenderBytes), letterOfCredit.Beneficiary)
+		return shim.Error("Beneficiary in L/C not valid")
+	}
 	if impBal < paymentAmount {
 		fmt.Printf("Importer's bank balance %d is insufficient to cover payment amount %d\n", impBal, paymentAmount)
 	}
@@ -1008,11 +1413,23 @@ func (t *TradeWorkflowChaincode) makePayment(stub shim.ChaincodeStubInterface, c
 	if err != nil {
 		return shim.Error(err.Error())
 	}
+	letterOfCreditBytes, err = json.Marshal(letterOfCredit)
+	if err != nil {
+		return shim.Error("Error marshaling L/C structure")
+	}
+	err = stub.PutState(lcKey, letterOfCreditBytes)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
 	err = stub.PutState(expBalKey, []byte(strconv.Itoa(expBal)))
 	if err != nil {
 		return shim.Error(err.Error())
 	}
 	err = stub.PutState(impBalKey, []byte(strconv.Itoa(impBal)))
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+	err = stub.PutState(lenBalKey, []byte(strconv.Itoa(lenBal)))
 	if err != nil {
 		return shim.Error(err.Error())
 	}
@@ -1143,8 +1560,8 @@ func (t *TradeWorkflowChaincode) getLCStatus(stub shim.ChaincodeStubInterface, c
 	var letterOfCreditBytes []byte
 	var err error
 
-	// Access control: Only an Importer or Exporter or Exporting Entity Org member can invoke this transaction
-	if !t.testMode && !(authenticateImporterOrg(creatorOrg, creatorCertIssuer) || authenticateExporterOrg(creatorOrg, creatorCertIssuer) || authenticateExportingEntityOrg(creatorOrg, creatorCertIssuer)) {
+	// Access control: Only an Importer or Exporter or Lender Org member can invoke this transaction
+	if !t.testMode && !(authenticateImporterOrg(creatorOrg, creatorCertIssuer) || authenticateExporterOrg(creatorOrg, creatorCertIssuer) || authenticateLenderOrg(creatorOrg, creatorCertIssuer)) {
 		return shim.Error("Caller not a member of Importer or Exporter or Exporting Entity Org. Access denied.")
 	}
 
@@ -1186,9 +1603,9 @@ func (t *TradeWorkflowChaincode) getELStatus(stub shim.ChaincodeStubInterface, c
 	var exportLicenseBytes []byte
 	var err error
 
-	// Access control: Only an Exporting Entity or Regulator Org member can invoke this transaction
-	if !t.testMode && !(authenticateExportingEntityOrg(creatorOrg, creatorCertIssuer) || authenticateRegulatorOrg(creatorOrg, creatorCertIssuer)) {
-		return shim.Error("Caller not a member of Exporting Entity or Regulator Org. Access denied.")
+	// Access control: Only an Exporter or Regulator Org member can invoke this transaction
+	if !t.testMode && !(authenticateExporterOrg(creatorOrg, creatorCertIssuer) || authenticateRegulatorOrg(creatorOrg, creatorCertIssuer)) {
+		return shim.Error("Caller not a member of Exporter or Regulator Org. Access denied.")
 	}
 
 	if len(args) != 1 {
@@ -1228,8 +1645,8 @@ func (t *TradeWorkflowChaincode) getShipmentLocation(stub shim.ChaincodeStubInte
 	var shipmentLocationBytes []byte
 	var err error
 
-	// Access control: Only an Importer or Exporter or Exporting Entity or Carrier Org member can invoke this transaction
-	if !t.testMode && !(authenticateImporterOrg(creatorOrg, creatorCertIssuer) || authenticateExporterOrg(creatorOrg, creatorCertIssuer) || authenticateExportingEntityOrg(creatorOrg, creatorCertIssuer) || authenticateCarrierOrg(creatorOrg, creatorCertIssuer)) {
+	// Access control: Only an Importer or Exporter or Lender or Carrier Org member can invoke this transaction
+	if !t.testMode && !(authenticateImporterOrg(creatorOrg, creatorCertIssuer) || authenticateExporterOrg(creatorOrg, creatorCertIssuer) || authenticateLenderOrg(creatorOrg, creatorCertIssuer) || authenticateCarrierOrg(creatorOrg, creatorCertIssuer)) {
 		return shim.Error("Caller not a member of Importer or Exporter or Exporting Entity or Carrier Org. Access denied.")
 	}
 
@@ -1315,8 +1732,14 @@ func (t *TradeWorkflowChaincode) getAccountBalance(stub shim.ChaincodeStubInterf
 			return shim.Error("Caller not a member of Importer Org. Access denied.")
 		}
 		balanceKey = impBalKey
+	} else if entity == "lender" {
+		// Access control: Only an Lender Org member can invoke this transaction
+		if !t.testMode && !authenticateLenderOrg(creatorOrg, creatorCertIssuer) {
+			return shim.Error("Caller not a member of Importer Org. Access denied.")
+		}
+		balanceKey = lenBalKey
 	} else {
-		err = errors.New(fmt.Sprintf("Invalid entity %s; Permissible values: {exporter, importer}", args[1]))
+		err = errors.New(fmt.Sprintf("Invalid entity %s; Permissible values: {exporter, importer, lender}", args[1]))
 		return shim.Error(err.Error())
 	}
 

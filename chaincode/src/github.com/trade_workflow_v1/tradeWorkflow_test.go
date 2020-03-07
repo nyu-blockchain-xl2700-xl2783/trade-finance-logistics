@@ -32,6 +32,9 @@ const (
 	IMPORTER = "WoodenToys"
 	IMPBANK = "ToyBank"
 	IMPBALANCE = 200000
+	LENDER = "LenderInc"
+	LENBANK = "LenderBank"
+	LENBALANCE = 300000
 	CARRIER = "UniversalFrieght"
 	REGAUTH = "ForestryDepartment"
 )
@@ -130,6 +133,9 @@ func getInitArguments() [][]byte {
 			[]byte("WoodenToys"),
 			[]byte("ToyBank"),
 			[]byte("200000"),
+			[]byte("LenderInc"),
+			[]byte("LenderBank"),
+			[]byte("300000"),
 			[]byte("UniversalFrieght"),
 			[]byte("ForestryDepartment")}
 }
@@ -148,6 +154,9 @@ func TestTradeWorkflow_Init(t *testing.T) {
 	checkState(t, stub, "Importer", IMPORTER)
 	checkState(t, stub, "ImportersBank", IMPBANK)
 	checkState(t, stub, "ImportersAccountBalance", strconv.Itoa(IMPBALANCE))
+	checkState(t, stub, "Lender", LENDER)
+	checkState(t, stub, "LendersBank", LENBANK)
+	checkState(t, stub, "LendersAccountBalance", strconv.Itoa(LENBALANCE))
 	checkState(t, stub, "Carrier", CARRIER)
 	checkState(t, stub, "RegulatoryAuthority", REGAUTH)
 }
@@ -208,7 +217,7 @@ func TestTradeWorkflow_LetterOfCredit(t *testing.T) {
 
 	// Invoke 'requestLC'
 	checkInvoke(t, stub, [][]byte{[]byte("requestLC"), []byte(tradeID)})
-	letterOfCredit := &LetterOfCredit{"", "", EXPORTER, amount, []string{}, REQUESTED}
+	letterOfCredit := &LetterOfCredit{"", "", EXPORTER, amount, []string{}, REQUESTED, 0.0}
 	letterOfCreditBytes, _ := json.Marshal(letterOfCredit)
 	lcKey, _ := stub.CreateCompositeKey("LetterOfCredit", []string{tradeID})
 	checkState(t, stub, lcKey, string(letterOfCreditBytes))
@@ -233,7 +242,7 @@ func TestTradeWorkflow_LetterOfCredit(t *testing.T) {
 	doc1 := "E/L"
 	doc2 := "B/L"
 	checkInvoke(t, stub, [][]byte{[]byte("issueLC"), []byte(tradeID), []byte(lcID), []byte(expirationDate), []byte(doc1), []byte(doc2)})
-	letterOfCredit = &LetterOfCredit{lcID, expirationDate, EXPORTER, amount, []string{doc1, doc2}, ISSUED}
+	letterOfCredit = &LetterOfCredit{lcID, expirationDate, EXPORTER, amount, []string{doc1, doc2}, ISSUED, 0.0}
 	letterOfCreditBytes, _ = json.Marshal(letterOfCredit)
 	checkState(t, stub, lcKey, string(letterOfCreditBytes))
 
@@ -242,7 +251,7 @@ func TestTradeWorkflow_LetterOfCredit(t *testing.T) {
 
 	// Invoke 'acceptLC'
 	checkInvoke(t, stub, [][]byte{[]byte("acceptLC"), []byte(tradeID)})
-	letterOfCredit = &LetterOfCredit{lcID, expirationDate, EXPORTER, amount, []string{doc1, doc2}, ACCEPTED}
+	letterOfCredit = &LetterOfCredit{lcID, expirationDate, EXPORTER, amount, []string{doc1, doc2}, ACCEPTED, 0.0}
 	letterOfCreditBytes, _ = json.Marshal(letterOfCredit)
 	checkState(t, stub, lcKey, string(letterOfCreditBytes))
 
@@ -397,7 +406,7 @@ func TestTradeWorkflow_PaymentFulfilment(t *testing.T) {
 	checkInvoke(t, stub, [][]byte{[]byte("makePayment"), []byte(tradeID)})
 	checkNoState(t, stub, paymentKey)
 	// Verify account and payment balances
-	payment := amount/2
+	payment := amount / 2
 	expBalanceStr := strconv.Itoa(EXPBALANCE + payment)
 	impBalanceStr := strconv.Itoa(IMPBALANCE - payment)
 	checkState(t, stub, expBalKey, expBalanceStr)
@@ -437,6 +446,253 @@ func TestTradeWorkflow_PaymentFulfilment(t *testing.T) {
 
 	expectedResp = "{\"Balance\":\"" + expBalanceStr + "\"}"
 	checkQueryArgs(t, stub, [][]byte{[]byte("getAccountBalance"), []byte(tradeID), []byte("exporter")}, expectedResp)
+
+	expectedResp = "{\"Balance\":\"" + impBalanceStr + "\"}"
+	checkQueryArgs(t, stub, [][]byte{[]byte("getAccountBalance"), []byte(tradeID), []byte("importer")}, expectedResp)
+}
+
+func TestTradeWorkflow_LetterOfCreditTransfer(t *testing.T) {
+	scc := new(TradeWorkflowChaincode)
+	scc.testMode = true
+	stub := shim.NewMockStub("Trade Workflow", scc)
+
+	// Init
+	checkInit(t, stub, getInitArguments())
+
+	// Invoke 'requestTrade', 'acceptTrade', 'requestLC', 'issueLC', 'acceptLC', 'requestEL', 'issueEL', 'prepareShipment', 'acceptShipmentAndIssueBL'
+	tradeID := "2ks89j9"
+	amount := 50000
+	descGoods := "Wood for Toys"
+	checkInvoke(t, stub, [][]byte{[]byte("requestTrade"), []byte(tradeID), []byte(strconv.Itoa(amount)), []byte(descGoods)})
+	checkInvoke(t, stub, [][]byte{[]byte("acceptTrade"), []byte(tradeID)})
+	checkInvoke(t, stub, [][]byte{[]byte("requestLC"), []byte(tradeID)})
+	lcID := "lc8349"
+	lcExpirationDate := "12/31/2018"
+	doc1 := "E/L"
+	doc2 := "B/L"
+	checkInvoke(t, stub, [][]byte{[]byte("issueLC"), []byte(tradeID), []byte(lcID), []byte(lcExpirationDate), []byte(doc1), []byte(doc2)})
+	checkInvoke(t, stub, [][]byte{[]byte("acceptLC"), []byte(tradeID)})
+	checkInvoke(t, stub, [][]byte{[]byte("requestEL"), []byte(tradeID)})
+	elID := "el979"
+	elExpirationDate := "4/30/2019"
+	checkInvoke(t, stub, [][]byte{[]byte("issueEL"), []byte(tradeID), []byte(elID), []byte(elExpirationDate)})
+	checkInvoke(t, stub, [][]byte{[]byte("prepareShipment"), []byte(tradeID)})
+	blID := "bl06678"
+	blExpirationDate := "8/31/2018"
+	sourcePort := "Woodlands Port"
+	destinationPort := "Market Port"
+	checkInvoke(t, stub, [][]byte{[]byte("acceptShipmentAndIssueBL"), []byte(tradeID), []byte(blID), []byte(blExpirationDate), []byte(sourcePort), []byte(destinationPort)})
+
+	// Invoke 'requestLCTransfer'
+	discountRate := float32(0.1)
+	checkInvoke(t, stub, [][]byte{[]byte("requestLCTransfer"), []byte(tradeID), []byte(strconv.FormatFloat(float64(discountRate), 'f', 2, 64))})
+	letterOfCredit := &LetterOfCredit{lcID, lcExpirationDate, LENDER, amount, []string{doc1, doc2}, TRANSFER_REQUESTED, discountRate}
+	letterOfCreditBytes, _ := json.Marshal(letterOfCredit)
+	lcKey, _ := stub.CreateCompositeKey("LetterOfCredit", []string{tradeID})
+	checkState(t, stub, lcKey, string(letterOfCreditBytes))
+
+	expectedResp := "{\"Status\":\"TRANSFER_REQUESTED\"}"
+	checkQuery(t, stub, "getLCStatus", tradeID, expectedResp)
+
+	// Invoke bad 'issueLCTransfer' and verify unchanged state
+	checkBadInvoke(t, stub, [][]byte{[]byte("issueLCTransfer")})
+	badTradeID := "abcd"
+	checkBadInvoke(t, stub, [][]byte{[]byte("issueLCTransder"), []byte(badTradeID)})
+	checkState(t, stub, lcKey, string(letterOfCreditBytes))
+
+	// Invoke 'acceptLCTransferAndMakePayment' prematurely and verify failure and unchanged state
+	checkBadInvoke(t, stub, [][]byte{[]byte("acceptLCTransferAndMakePayment"), []byte(badTradeID)})
+	checkState(t, stub, lcKey, string(letterOfCreditBytes))
+	checkQuery(t, stub, "getLCStatus", tradeID, expectedResp)
+
+	// Invoke 'issueLCTransfer'
+	checkInvoke(t, stub, [][]byte{[]byte("issueLCTransfer"), []byte(tradeID)})
+	letterOfCredit = &LetterOfCredit{lcID, lcExpirationDate, LENDER, amount, []string{doc1, doc2}, TRANSFER_ISSUED, discountRate}
+	letterOfCreditBytes, _ = json.Marshal(letterOfCredit)
+	checkState(t, stub, lcKey, string(letterOfCreditBytes))
+
+	expectedResp = "{\"Status\":\"TRANSFER_ISSUED\"}"
+	checkQuery(t, stub, "getLCStatus", tradeID, expectedResp)
+
+	// Invoke 'acceptLCTransferAndMakePayment'
+	checkInvoke(t, stub, [][]byte{[]byte("acceptLCTransferAndMakePayment"), []byte(tradeID)})
+	letterOfCredit = &LetterOfCredit{lcID, lcExpirationDate, LENDER, amount, []string{doc1, doc2}, TRANSFER_ACCEPTED, discountRate}
+	letterOfCreditBytes, _ = json.Marshal(letterOfCredit)
+	checkState(t, stub, lcKey, string(letterOfCreditBytes))
+
+	expectedResp = "{\"Status\":\"TRANSFER_ACCEPTED\"}"
+	checkQuery(t, stub, "getLCStatus", tradeID, expectedResp)
+
+	// Verify account and payment balances
+	fullRate := float32(1.0)
+	payment := int((fullRate - discountRate) * float32(amount))
+	expBalanceStr := strconv.Itoa(EXPBALANCE + payment)
+	lenBalanceStr := strconv.Itoa(LENBALANCE - payment)
+	checkState(t, stub, expBalKey, expBalanceStr)
+	checkState(t, stub, lenBalKey, lenBalanceStr)
+
+	// Check queries
+	expectedResp = "{\"Balance\":\"" + expBalanceStr + "\"}"
+	checkQueryArgs(t, stub, [][]byte{[]byte("getAccountBalance"), []byte(tradeID), []byte("exporter")}, expectedResp)
+
+	expectedResp = "{\"Balance\":\"" + lenBalanceStr + "\"}"
+	checkQueryArgs(t, stub, [][]byte{[]byte("getAccountBalance"), []byte(tradeID), []byte("lender")}, expectedResp)
+}
+
+func TestTradeWorkflow_PaymentFulfilment_LetterOfCreditTransferBeforePayment(t *testing.T) {
+	scc := new(TradeWorkflowChaincode)
+	scc.testMode = true
+	stub := shim.NewMockStub("Trade Workflow", scc)
+
+	// Init
+	checkInit(t, stub, getInitArguments())
+
+	// Invoke 'requestTrade', 'acceptTrade', 'requestLC', 'issueLC', 'acceptLC', 'requestEL', 'issueEL', 'prepareShipment', 'acceptShipmentAndIssueBL'
+	tradeID := "2ks89j9"
+	amount := 50000
+	descGoods := "Wood for Toys"
+	checkInvoke(t, stub, [][]byte{[]byte("requestTrade"), []byte(tradeID), []byte(strconv.Itoa(amount)), []byte(descGoods)})
+	checkInvoke(t, stub, [][]byte{[]byte("acceptTrade"), []byte(tradeID)})
+	checkInvoke(t, stub, [][]byte{[]byte("requestLC"), []byte(tradeID)})
+	lcID := "lc8349"
+	lcExpirationDate := "12/31/2018"
+	doc1 := "E/L"
+	doc2 := "B/L"
+	checkInvoke(t, stub, [][]byte{[]byte("issueLC"), []byte(tradeID), []byte(lcID), []byte(lcExpirationDate), []byte(doc1), []byte(doc2)})
+	checkInvoke(t, stub, [][]byte{[]byte("acceptLC"), []byte(tradeID)})
+	checkInvoke(t, stub, [][]byte{[]byte("requestEL"), []byte(tradeID)})
+	elID := "el979"
+	elExpirationDate := "4/30/2019"
+	checkInvoke(t, stub, [][]byte{[]byte("issueEL"), []byte(tradeID), []byte(elID), []byte(elExpirationDate)})
+	checkInvoke(t, stub, [][]byte{[]byte("prepareShipment"), []byte(tradeID)})
+	blID := "bl06678"
+	blExpirationDate := "8/31/2018"
+	sourcePort := "Woodlands Port"
+	destinationPort := "Market Port"
+	checkInvoke(t, stub, [][]byte{[]byte("acceptShipmentAndIssueBL"), []byte(tradeID), []byte(blID), []byte(blExpirationDate), []byte(sourcePort), []byte(destinationPort)})
+	discountRate := float32(0.1)
+	checkInvoke(t, stub, [][]byte{[]byte("requestLCTransfer"), []byte(tradeID), []byte(strconv.FormatFloat(float64(discountRate), 'f', 2, 64))})
+	checkInvoke(t, stub, [][]byte{[]byte("issueLCTransfer"), []byte(tradeID)})
+	checkInvoke(t, stub, [][]byte{[]byte("acceptLCTransferAndMakePayment"), []byte(tradeID)})
+	checkInvoke(t, stub, [][]byte{[]byte("requestPayment"), []byte(tradeID)})
+
+	fullRate := float32(1.0)
+	payment := int((fullRate - discountRate) * float32(amount))
+	lenBalance := LENBALANCE - payment
+	
+	// Invoke 'makePayment'
+	checkInvoke(t, stub, [][]byte{[]byte("makePayment"), []byte(tradeID)})
+
+	// Verify account and payment balances
+	payment = amount / 2
+	lenBalanceStr := strconv.Itoa(lenBalance + payment)
+	impBalanceStr := strconv.Itoa(IMPBALANCE - payment)
+	checkState(t, stub, lenBalKey, lenBalanceStr)
+	checkState(t, stub, impBalKey, impBalanceStr)
+	tradeAgreement := &TradeAgreement{amount, descGoods, ACCEPTED, payment}
+	tradeAgreementBytes, _ := json.Marshal(tradeAgreement)
+	tradeKey, _ := stub.CreateCompositeKey("Trade", []string{tradeID})
+	checkState(t, stub, tradeKey, string(tradeAgreementBytes))
+
+	// Check queries
+	checkBadQuery(t, stub, "getAccountBalance", tradeID)
+	expectedResp := "{\"Balance\":\"" + lenBalanceStr + "\"}"
+	checkQueryArgs(t, stub, [][]byte{[]byte("getAccountBalance"), []byte(tradeID), []byte("lender")}, expectedResp)
+
+	expectedResp = "{\"Balance\":\"" + impBalanceStr + "\"}"
+	checkQueryArgs(t, stub, [][]byte{[]byte("getAccountBalance"), []byte(tradeID), []byte("importer")}, expectedResp)
+
+	checkInvoke(t, stub, [][]byte{[]byte("updateShipmentLocation"), []byte(tradeID), []byte(DESTINATION)})
+
+	// Invoke 'requestPayment' and 'makePayment'
+	checkInvoke(t, stub, [][]byte{[]byte("requestPayment"), []byte(tradeID)})
+	checkInvoke(t, stub, [][]byte{[]byte("makePayment"), []byte(tradeID)})
+
+	// Verify account and payment balances, and check queries
+	lenBalanceStr = strconv.Itoa(lenBalance + amount)
+	impBalanceStr = strconv.Itoa(IMPBALANCE - amount)
+	checkState(t, stub, lenBalKey, lenBalanceStr)
+	checkState(t, stub, impBalKey, impBalanceStr)
+	tradeAgreement = &TradeAgreement{amount, descGoods, ACCEPTED, amount}
+	tradeAgreementBytes, _ = json.Marshal(tradeAgreement)
+	checkState(t, stub, tradeKey, string(tradeAgreementBytes))
+
+	expectedResp = "{\"Balance\":\"" + lenBalanceStr + "\"}"
+	checkQueryArgs(t, stub, [][]byte{[]byte("getAccountBalance"), []byte(tradeID), []byte("lender")}, expectedResp)
+
+	expectedResp = "{\"Balance\":\"" + impBalanceStr + "\"}"
+	checkQueryArgs(t, stub, [][]byte{[]byte("getAccountBalance"), []byte(tradeID), []byte("importer")}, expectedResp)
+}
+
+func TestTradeWorkflow_PaymentFulfilment_LetterOfCreditTransferAfterPartialPayment(t *testing.T) {
+	scc := new(TradeWorkflowChaincode)
+	scc.testMode = true
+	stub := shim.NewMockStub("Trade Workflow", scc)
+
+	// Init
+	checkInit(t, stub, getInitArguments())
+
+	// Invoke 'requestTrade', 'acceptTrade', 'requestLC', 'issueLC', 'acceptLC', 'requestEL', 'issueEL', 'prepareShipment', 'acceptShipmentAndIssueBL'
+	tradeID := "2ks89j9"
+	amount := 50000
+	descGoods := "Wood for Toys"
+	checkInvoke(t, stub, [][]byte{[]byte("requestTrade"), []byte(tradeID), []byte(strconv.Itoa(amount)), []byte(descGoods)})
+	checkInvoke(t, stub, [][]byte{[]byte("acceptTrade"), []byte(tradeID)})
+	checkInvoke(t, stub, [][]byte{[]byte("requestLC"), []byte(tradeID)})
+	lcID := "lc8349"
+	lcExpirationDate := "12/31/2018"
+	doc1 := "E/L"
+	doc2 := "B/L"
+	checkInvoke(t, stub, [][]byte{[]byte("issueLC"), []byte(tradeID), []byte(lcID), []byte(lcExpirationDate), []byte(doc1), []byte(doc2)})
+	checkInvoke(t, stub, [][]byte{[]byte("acceptLC"), []byte(tradeID)})
+	checkInvoke(t, stub, [][]byte{[]byte("requestEL"), []byte(tradeID)})
+	elID := "el979"
+	elExpirationDate := "4/30/2019"
+	checkInvoke(t, stub, [][]byte{[]byte("issueEL"), []byte(tradeID), []byte(elID), []byte(elExpirationDate)})
+	checkInvoke(t, stub, [][]byte{[]byte("prepareShipment"), []byte(tradeID)})
+	blID := "bl06678"
+	blExpirationDate := "8/31/2018"
+	sourcePort := "Woodlands Port"
+	destinationPort := "Market Port"
+	checkInvoke(t, stub, [][]byte{[]byte("acceptShipmentAndIssueBL"), []byte(tradeID), []byte(blID), []byte(blExpirationDate), []byte(sourcePort), []byte(destinationPort)})
+	checkInvoke(t, stub, [][]byte{[]byte("requestPayment"), []byte(tradeID)})
+	checkInvoke(t, stub, [][]byte{[]byte("makePayment"), []byte(tradeID)})
+
+	discountRate := float32(0.1)
+	checkInvoke(t, stub, [][]byte{[]byte("requestLCTransfer"), []byte(tradeID), []byte(strconv.FormatFloat(float64(discountRate), 'f', 2, 64))})
+	checkInvoke(t, stub, [][]byte{[]byte("issueLCTransfer"), []byte(tradeID)})
+	checkInvoke(t, stub, [][]byte{[]byte("acceptLCTransferAndMakePayment"), []byte(tradeID)})
+
+	fullRate := float32(1.0)
+	payment := int((fullRate - discountRate) * float32(amount / 2))
+	expBalanceStr := strconv.Itoa(EXPBALANCE + amount / 2 + payment)
+	lenBalanceStr := strconv.Itoa(LENBALANCE - payment)
+	checkState(t, stub, expBalKey, expBalanceStr)
+	checkState(t, stub, lenBalKey, lenBalanceStr)
+
+	// Check queries
+	expectedResp := "{\"Balance\":\"" + expBalanceStr + "\"}"
+	checkQueryArgs(t, stub, [][]byte{[]byte("getAccountBalance"), []byte(tradeID), []byte("exporter")}, expectedResp)
+
+	expectedResp = "{\"Balance\":\"" + lenBalanceStr + "\"}"
+	checkQueryArgs(t, stub, [][]byte{[]byte("getAccountBalance"), []byte(tradeID), []byte("lender")}, expectedResp)
+
+	checkInvoke(t, stub, [][]byte{[]byte("updateShipmentLocation"), []byte(tradeID), []byte(DESTINATION)})
+	checkInvoke(t, stub, [][]byte{[]byte("requestPayment"), []byte(tradeID)})
+	checkInvoke(t, stub, [][]byte{[]byte("makePayment"), []byte(tradeID)})
+
+	// Verify account and payment balances, and check queries
+	lenBalanceStr = strconv.Itoa(LENBALANCE - payment + amount / 2)
+	impBalanceStr := strconv.Itoa(IMPBALANCE - amount)
+	checkState(t, stub, lenBalKey, lenBalanceStr)
+	checkState(t, stub, impBalKey, impBalanceStr)
+	tradeAgreement := &TradeAgreement{amount, descGoods, ACCEPTED, amount}
+	tradeAgreementBytes, _ := json.Marshal(tradeAgreement)
+	tradeKey, _ := stub.CreateCompositeKey("Trade", []string{tradeID})
+	checkState(t, stub, tradeKey, string(tradeAgreementBytes))
+
+	expectedResp = "{\"Balance\":\"" + lenBalanceStr + "\"}"
+	checkQueryArgs(t, stub, [][]byte{[]byte("getAccountBalance"), []byte(tradeID), []byte("lender")}, expectedResp)
 
 	expectedResp = "{\"Balance\":\"" + impBalanceStr + "\"}"
 	checkQueryArgs(t, stub, [][]byte{[]byte("getAccountBalance"), []byte(tradeID), []byte("importer")}, expectedResp)

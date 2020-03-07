@@ -30,7 +30,6 @@ type LetterOfCredit struct {
 	Amount				int			`json:"amount"`
 	Documents			[]string	`json:"documents"`
 	Status				string		`json:"status"`
-	Holder				string		`json:"holder"`
 	DiscountRate		float32		`json:"discountRate"`
 }
 
