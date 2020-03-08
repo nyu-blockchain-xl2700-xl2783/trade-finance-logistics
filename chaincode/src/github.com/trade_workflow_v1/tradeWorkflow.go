@@ -1257,6 +1257,12 @@ func (t *TradeWorkflowChaincode) makeAdvancePayment(stub shim.ChaincodeStubInter
 		return shim.Error(err.Error())
 	}
 
+	// Check if L/C transfer has been accepted
+	if letterOfCredit.Status != TRANSFER_ACCEPTED {
+		fmt.Printf("L/C transfer not accepted for trade %s\n", args[0])
+		return shim.Error("L/C transfer not accepted")
+	}
+
 	// Lookup lender
 	lenderBytes, err = stub.GetState(lenKey)
 	if err != nil {
@@ -1527,6 +1533,7 @@ func (t *TradeWorkflowChaincode) makePayment(stub shim.ChaincodeStubInterface, c
 		return shim.Error(err.Error())
 	}
 
+	// Check if L/C has been accepted
 	if !(letterOfCredit.Status == ACCEPTED || letterOfCredit.Status == TRANSFER_ACCEPTED) {
 		fmt.Printf("L/C not accepted for trade %s\n", args[0])
 		return shim.Error("L/C not accepted")
