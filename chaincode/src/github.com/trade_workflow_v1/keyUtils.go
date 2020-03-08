@@ -73,3 +73,12 @@ func getPaymentKey(stub shim.ChaincodeStubInterface, tradeID string) (string, er
 		return paymentKey, nil
 	}
 }
+
+func getAdvancePaymentKey(stub shim.ChaincodeStubInterface, tradeID string) (string, error) {
+	advancePaymentKey, err := stub.CreateCompositeKey("AdvancePayment", []string{tradeID})
+	if err != nil {
+		return "", err
+	} else {
+		return advancePaymentKey, nil
+	}
+}

@@ -405,6 +405,7 @@ func TestTradeWorkflow_PaymentFulfilment(t *testing.T) {
 	// Invoke 'makePayment'
 	checkInvoke(t, stub, [][]byte{[]byte("makePayment"), []byte(tradeID)})
 	checkNoState(t, stub, paymentKey)
+
 	// Verify account and payment balances
 	payment := amount / 2
 	expBalanceStr := strconv.Itoa(EXPBALANCE + payment)
@@ -500,8 +501,8 @@ func TestTradeWorkflow_LetterOfCreditTransfer(t *testing.T) {
 	checkBadInvoke(t, stub, [][]byte{[]byte("issueLCTransder"), []byte(badTradeID)})
 	checkState(t, stub, lcKey, string(letterOfCreditBytes))
 
-	// Invoke 'acceptLCTransferAndMakePayment' prematurely and verify failure and unchanged state
-	checkBadInvoke(t, stub, [][]byte{[]byte("acceptLCTransferAndMakePayment"), []byte(badTradeID)})
+	// Invoke 'acceptLCTransfer' prematurely and verify failure and unchanged state
+	checkBadInvoke(t, stub, [][]byte{[]byte("acceptLCTransfer"), []byte(badTradeID)})
 	checkState(t, stub, lcKey, string(letterOfCreditBytes))
 	checkQuery(t, stub, "getLCStatus", tradeID, expectedResp)
 
@@ -514,14 +515,23 @@ func TestTradeWorkflow_LetterOfCreditTransfer(t *testing.T) {
 	expectedResp = "{\"Status\":\"TRANSFER_ISSUED\"}"
 	checkQuery(t, stub, "getLCStatus", tradeID, expectedResp)
 
-	// Invoke 'acceptLCTransferAndMakePayment'
-	checkInvoke(t, stub, [][]byte{[]byte("acceptLCTransferAndMakePayment"), []byte(tradeID)})
+	// Invoke 'acceptLCTransfer'
+	checkInvoke(t, stub, [][]byte{[]byte("acceptLCTransfer"), []byte(tradeID)})
 	letterOfCredit = &LetterOfCredit{lcID, lcExpirationDate, LENDER, amount, []string{doc1, doc2}, TRANSFER_ACCEPTED, discountRate}
 	letterOfCreditBytes, _ = json.Marshal(letterOfCredit)
 	checkState(t, stub, lcKey, string(letterOfCreditBytes))
 
 	expectedResp = "{\"Status\":\"TRANSFER_ACCEPTED\"}"
 	checkQuery(t, stub, "getLCStatus", tradeID, expectedResp)
+
+	// Invoke 'requestAdvancePayment'
+	checkInvoke(t, stub, [][]byte{[]byte("requestAdvancePayment"), []byte(tradeID)})
+	advancePaymentKey, _ := stub.CreateCompositeKey("AdvancePayment", []string{tradeID})
+	checkState(t, stub, advancePaymentKey, REQUESTED)
+
+	// Invoke 'makePayment'
+	checkInvoke(t, stub, [][]byte{[]byte("makeAdvancePayment"), []byte(tradeID)})
+	checkNoState(t, stub, advancePaymentKey)
 
 	// Verify account and payment balances
 	fullRate := float32(1.0)
@@ -573,7 +583,9 @@ func TestTradeWorkflow_PaymentFulfilment_LetterOfCreditTransferBeforePayment(t *
 	discountRate := float32(0.1)
 	checkInvoke(t, stub, [][]byte{[]byte("requestLCTransfer"), []byte(tradeID), []byte(strconv.FormatFloat(float64(discountRate), 'f', 2, 64))})
 	checkInvoke(t, stub, [][]byte{[]byte("issueLCTransfer"), []byte(tradeID)})
-	checkInvoke(t, stub, [][]byte{[]byte("acceptLCTransferAndMakePayment"), []byte(tradeID)})
+	checkInvoke(t, stub, [][]byte{[]byte("acceptLCTransfer"), []byte(tradeID)})
+	checkInvoke(t, stub, [][]byte{[]byte("requestAdvancePayment"), []byte(tradeID)})
+	checkInvoke(t, stub, [][]byte{[]byte("makeAdvancePayment"), []byte(tradeID)})
 	checkInvoke(t, stub, [][]byte{[]byte("requestPayment"), []byte(tradeID)})
 
 	fullRate := float32(1.0)
@@ -661,7 +673,9 @@ func TestTradeWorkflow_PaymentFulfilment_LetterOfCreditTransferAfterPartialPayme
 	discountRate := float32(0.1)
 	checkInvoke(t, stub, [][]byte{[]byte("requestLCTransfer"), []byte(tradeID), []byte(strconv.FormatFloat(float64(discountRate), 'f', 2, 64))})
 	checkInvoke(t, stub, [][]byte{[]byte("issueLCTransfer"), []byte(tradeID)})
-	checkInvoke(t, stub, [][]byte{[]byte("acceptLCTransferAndMakePayment"), []byte(tradeID)})
+	checkInvoke(t, stub, [][]byte{[]byte("acceptLCTransfer"), []byte(tradeID)})
+	checkInvoke(t, stub, [][]byte{[]byte("requestAdvancePayment"), []byte(tradeID)})
+	checkInvoke(t, stub, [][]byte{[]byte("makeAdvancePayment"), []byte(tradeID)})
 
 	fullRate := float32(1.0)
 	payment := int((fullRate - discountRate) * float32(amount / 2))

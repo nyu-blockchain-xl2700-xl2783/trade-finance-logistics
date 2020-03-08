@@ -134,14 +134,14 @@ func (t *TradeWorkflowChaincode) Invoke(stub shim.ChaincodeStubInterface) pb.Res
 		// Exporter's Bank accepts an L/C
 		return t.acceptLC(stub, creatorOrg, creatorCertIssuer, args)
 	} else if function == "requestLCTransfer" {
-		// Importer requests an L/C
+		// Exporter requests an L/C transfer
 		return t.requestLCTransfer(stub, creatorOrg, creatorCertIssuer, args)
 	} else if function == "issueLCTransfer" {
-		// Importer's Bank issues an L/C
+		// Exporter's Bank issues an L/C transfer
 		return t.issueLCTransfer(stub, creatorOrg, creatorCertIssuer, args)
-	} else if function == "acceptLCTransferAndMakePayment" {
-		// Exporter's Bank accepts an L/C
-		return t.acceptLCTransferAndMakePayment(stub, creatorOrg, creatorCertIssuer, args)
+	} else if function == "acceptLCTransfer" {
+		// Lender's Bank accepts an L/C transfer
+		return t.acceptLCTransfer(stub, creatorOrg, creatorCertIssuer, args)
 	} else if function == "requestEL" {
 		// Exporter requests an E/L
 		return t.requestEL(stub, creatorOrg, creatorCertIssuer, args)
@@ -154,6 +154,12 @@ func (t *TradeWorkflowChaincode) Invoke(stub shim.ChaincodeStubInterface) pb.Res
 	} else if function == "acceptShipmentAndIssueBL" {
 		// Carrier validates the shipment and issues a B/L
 		return t.acceptShipmentAndIssueBL(stub, creatorOrg, creatorCertIssuer, args)
+	} else if function == "requestAdvancePayment" {
+		// Exporter's Bank requests an advance payment
+		return t.requestAdvancePayment(stub, creatorOrg, creatorCertIssuer, args)
+	} else if function == "makeAdvancePayment" {
+		// Lender's Bank makes an advance payment
+		return t.makeAdvancePayment(stub, creatorOrg, creatorCertIssuer, args)
 	} else if function == "requestPayment" {
 		// Exporter's Bank requests a payment
 		return t.requestPayment(stub, creatorOrg, creatorCertIssuer, args)
@@ -295,7 +301,7 @@ func (t *TradeWorkflowChaincode) acceptTrade(stub shim.ChaincodeStubInterface, c
 	}
 
 	if tradeAgreement.Status == ACCEPTED {
-		fmt.Printf("Trade %s already accepted", args[0])
+		fmt.Printf("Trade %s already accepted\n", args[0])
 	} else {
 		tradeAgreement.Status = ACCEPTED
 		tradeAgreementBytes, err = json.Marshal(tradeAgreement)
@@ -418,11 +424,11 @@ func (t *TradeWorkflowChaincode) issueLC(stub shim.ChaincodeStubInterface, creat
 	}
 
 	if letterOfCredit.Status == ISSUED {
-		fmt.Printf("L/C for trade %s already issued", args[0])
+		fmt.Printf("L/C for trade %s already issued\n", args[0])
 	} else if letterOfCredit.Status == ACCEPTED {
-		fmt.Printf("L/C for trade %s already accepted", args[0])
+		fmt.Printf("L/C for trade %s already accepted\n", args[0])
 	} else if letterOfCredit.Status == TRANSFER_REQUESTED || letterOfCredit.Status == TRANSFER_ISSUED || letterOfCredit.Status == TRANSFER_ACCEPTED {
-		fmt.Printf("L/C for trade %s already transferred", args[0])
+		fmt.Printf("L/C for trade %s already transferred\n", args[0])
 	} else {
 		letterOfCredit.Id = args[1]
 		letterOfCredit.ExpirationDate = args[2]
@@ -477,11 +483,11 @@ func (t *TradeWorkflowChaincode) acceptLC(stub shim.ChaincodeStubInterface, crea
 	}
 
 	if letterOfCredit.Status == ACCEPTED {
-		fmt.Printf("L/C for trade %s already accepted", args[0])
+		fmt.Printf("L/C for trade %s already accepted\n", args[0])
 	} else if letterOfCredit.Status == TRANSFER_REQUESTED || letterOfCredit.Status == TRANSFER_ISSUED || letterOfCredit.Status == TRANSFER_ACCEPTED {
-		fmt.Printf("L/C for trade %s already transferred", args[0])
+		fmt.Printf("L/C for trade %s already transferred\n", args[0])
 	} else if letterOfCredit.Status == REQUESTED {
-		fmt.Printf("L/C for trade %s has not been issued", args[0])
+		fmt.Printf("L/C for trade %s has not been issued\n", args[0])
 		return shim.Error("L/C not issued yet")
 	} else {
 		letterOfCredit.Status = ACCEPTED
@@ -537,7 +543,7 @@ func (t *TradeWorkflowChaincode) requestEL(stub shim.ChaincodeStubInterface, cre
 
 	// Verify that the L/C has already been accepted
 	if letterOfCredit.Status != ACCEPTED {
-		fmt.Printf("L/C for trade %s has not been accepted", args[0])
+		fmt.Printf("L/C for trade %s has not been accepted\n", args[0])
 		return shim.Error("L/C not accepted yet")
 	}
 
@@ -641,7 +647,7 @@ func (t *TradeWorkflowChaincode) issueEL(stub shim.ChaincodeStubInterface, creat
 
 	// Verify that the E/L has not already been issued
 	if exportLicense.Status == ISSUED {
-		fmt.Printf("E/L for trade %s has already been issued", args[0])
+		fmt.Printf("E/L for trade %s has already been issued\n", args[0])
 	} else {
 		exportLicense.Id = args[1]
 		exportLicense.ExpirationDate = args[2]
@@ -691,10 +697,10 @@ func (t *TradeWorkflowChaincode) prepareShipment(stub shim.ChaincodeStubInterfac
 
 	if len(shipmentLocationBytes) != 0 {
 		if string(shipmentLocationBytes) == SOURCE {
-			fmt.Printf("Shipment for trade %s has already been prepared", args[0])
+			fmt.Printf("Shipment for trade %s has already been prepared\n", args[0])
 			return shim.Success(nil)
 		} else {
-			fmt.Printf("Shipment for trade %s has passed the preparation stage", args[0])
+			fmt.Printf("Shipment for trade %s has passed the preparation stage\n", args[0])
 			return shim.Error("Shipment past the preparation stage")
 		}
 	}
@@ -717,7 +723,7 @@ func (t *TradeWorkflowChaincode) prepareShipment(stub shim.ChaincodeStubInterfac
 
 	// Verify that the E/L has already been issued
 	if exportLicense.Status != ISSUED {
-		fmt.Printf("E/L for trade %s has not been issued", args[0])
+		fmt.Printf("E/L for trade %s has not been issued\n", args[0])
 		return shim.Error("E/L not issued yet")
 	}
 
@@ -765,11 +771,11 @@ func (t *TradeWorkflowChaincode) acceptShipmentAndIssueBL(stub shim.ChaincodeStu
 	}
 
 	if len(shipmentLocationBytes) == 0 {
-		fmt.Printf("Shipment for trade %s has not been prepared yet", args[0])
+		fmt.Printf("Shipment for trade %s has not been prepared yet\n", args[0])
 		return shim.Error("Shipment not prepared yet")
 	}
 	if string(shipmentLocationBytes) != SOURCE {
-		fmt.Printf("Shipment for trade %s has passed the preparation stage", args[0])
+		fmt.Printf("Shipment for trade %s has passed the preparation stage\n", args[0])
 		return shim.Error("Shipment past the preparation stage")
 	}
 
@@ -885,7 +891,7 @@ func (t *TradeWorkflowChaincode) requestLCTransfer(stub shim.ChaincodeStubInterf
 	}
 
 	if len(paymentBytes) != 0 {
-		fmt.Printf("Payment request pending for trade %s", args[0])
+		fmt.Printf("Payment request pending for trade %s\n", args[0])
 		return shim.Error("Payment request pending")
 	}
 
@@ -901,7 +907,7 @@ func (t *TradeWorkflowChaincode) requestLCTransfer(stub shim.ChaincodeStubInterf
 	}
 
 	if len(shipmentLocationBytes) == 0 {
-		fmt.Printf("Shipment for trade %s has not been prepared yet", args[0])
+		fmt.Printf("Shipment for trade %s has not been prepared yet\n", args[0])
 		return shim.Error("Shipment not prepared yet")
 	}
 
@@ -913,19 +919,19 @@ func (t *TradeWorkflowChaincode) requestLCTransfer(stub shim.ChaincodeStubInterf
 
 	// Check if there is available amount of credit
 	if letterOfCredit.Amount <= 0 {
-		fmt.Printf("L/C for trade %s doesn't have available amount of credit", args[0])
+		fmt.Printf("L/C for trade %s doesn't have available amount of credit\n", args[0])
 		return shim.Error("L/C no available amount of credit")
 	}
 
 	if letterOfCredit.Status == REQUESTED || letterOfCredit.Status == ISSUED {
-		fmt.Printf("L/C for trade %s has not been accepted", args[0])
+		fmt.Printf("L/C for trade %s has not been accepted\n", args[0])
 		return shim.Error("L/C not accepted yet")
 	} else if letterOfCredit.Status == TRANSFER_REQUESTED {
-		fmt.Printf("L/C transfer for trade %s already requested", args[0])
+		fmt.Printf("L/C transfer for trade %s already requested\n", args[0])
 	} else if letterOfCredit.Status == TRANSFER_ISSUED {
-		fmt.Printf("L/C transfer for trade %s already issued", args[0])
+		fmt.Printf("L/C transfer for trade %s already issued\n", args[0])
 	} else if letterOfCredit.Status == TRANSFER_ACCEPTED {
-		fmt.Printf("L/C transfer for trade %s already accepted", args[0])
+		fmt.Printf("L/C transfer for trade %s already accepted\n", args[0])
 	} else {
 		letterOfCredit.Beneficiary = string(lenderBytes)
 		letterOfCredit.DiscountRate = float32(discountRate)
@@ -977,7 +983,7 @@ func (t *TradeWorkflowChaincode) issueLCTransfer(stub shim.ChaincodeStubInterfac
 	if err != nil {
 		return shim.Error(err.Error())
 	}
-
+	
 	// Check if there's a pending payment request
 	paymentKey, err = getPaymentKey(stub, args[0])
 	if err != nil {
@@ -989,7 +995,7 @@ func (t *TradeWorkflowChaincode) issueLCTransfer(stub shim.ChaincodeStubInterfac
 	}
 
 	if len(paymentBytes) != 0 {
-		fmt.Printf("Payment request pending for trade %s", args[0])
+		fmt.Printf("Payment request pending for trade %s\n", args[0])
 		return shim.Error("Payment request pending")
 	}
 
@@ -1005,23 +1011,23 @@ func (t *TradeWorkflowChaincode) issueLCTransfer(stub shim.ChaincodeStubInterfac
 	}
 
 	if len(shipmentLocationBytes) == 0 {
-		fmt.Printf("Shipment for trade %s has not been prepared yet", args[0])
+		fmt.Printf("Shipment for trade %s has not been prepared yet\n", args[0])
 		return shim.Error("Shipment not prepared yet")
 	}
 
 	// Check if there is available amount of credit
 	if letterOfCredit.Amount <= 0 {
-		fmt.Printf("L/C for trade %s doesn't have available amount of credit", args[0])
+		fmt.Printf("L/C for trade %s doesn't have available amount of credit\n", args[0])
 		return shim.Error("L/C no available amount of credit")
 	}
 
 	if letterOfCredit.Status == REQUESTED || letterOfCredit.Status == ISSUED || letterOfCredit.Status == ACCEPTED {
-		fmt.Printf("L/C transfer for trade %s has not been requested", args[0])
+		fmt.Printf("L/C transfer for trade %s has not been requested\n", args[0])
 		return shim.Error("L/C transfer not requested yet")
 	} else if letterOfCredit.Status == TRANSFER_ISSUED {
-		fmt.Printf("L/C transfer for trade %s already issued", args[0])
+		fmt.Printf("L/C transfer for trade %s already issued\n", args[0])
 	} else if letterOfCredit.Status == TRANSFER_ACCEPTED {
-		fmt.Printf("L/C transfer for trade %s already accepted", args[0])
+		fmt.Printf("L/C transfer for trade %s already accepted\n", args[0])
 	} else {
 		letterOfCredit.Status = TRANSFER_ISSUED
 		letterOfCreditBytes, err = json.Marshal(letterOfCredit)
@@ -1040,11 +1046,9 @@ func (t *TradeWorkflowChaincode) issueLCTransfer(stub shim.ChaincodeStubInterfac
 }
 
 // Accept an L/C transfer and make an advance payment
-func (t *TradeWorkflowChaincode) acceptLCTransferAndMakePayment(stub shim.ChaincodeStubInterface, creatorOrg string, creatorCertIssuer string, args []string) pb.Response {
+func (t *TradeWorkflowChaincode) acceptLCTransfer(stub shim.ChaincodeStubInterface, creatorOrg string, creatorCertIssuer string, args []string) pb.Response {
 	var lcKey, paymentKey, shipmentLocationKey string
-	var paymentAmount, expBal, lenBal int
-	var fullRate float32
-	var letterOfCreditBytes, paymentBytes, shipmentLocationBytes, expBalBytes, lenBalBytes []byte
+	var letterOfCreditBytes, paymentBytes, shipmentLocationBytes []byte
 	var letterOfCredit *LetterOfCredit
 	var err error
 
@@ -1085,7 +1089,7 @@ func (t *TradeWorkflowChaincode) acceptLCTransferAndMakePayment(stub shim.Chainc
 	}
 
 	if len(paymentBytes) != 0 {
-		fmt.Printf("Payment request pending for trade %s", args[0])
+		fmt.Printf("Payment request pending for trade %s\n", args[0])
 		return shim.Error("Payment request pending")
 	}
 
@@ -1101,60 +1105,22 @@ func (t *TradeWorkflowChaincode) acceptLCTransferAndMakePayment(stub shim.Chainc
 	}
 
 	if len(shipmentLocationBytes) == 0 {
-		fmt.Printf("Shipment for trade %s has not been prepared yet", args[0])
+		fmt.Printf("Shipment for trade %s has not been prepared yet\n", args[0])
 		return shim.Error("Shipment not prepared yet")
 	}
 
 	// Check if there is available amount of credit
 	if letterOfCredit.Amount <= 0 {
-		fmt.Printf("L/C for trade %s doesn't have available amount of credit", args[0])
+		fmt.Printf("L/C for trade %s doesn't have available amount of credit\n", args[0])
 		return shim.Error("L/C no available amount of credit")
 	}
 
 	if letterOfCredit.Status == REQUESTED || letterOfCredit.Status == ISSUED || letterOfCredit.Status == ACCEPTED || letterOfCredit.Status == TRANSFER_REQUESTED {
-		fmt.Printf("L/C transfer for trade %s has not been requested", args[0])
+		fmt.Printf("L/C transfer for trade %s has not been requested\n", args[0])
 		return shim.Error("L/C transfer not requested yet")
 	} else if letterOfCredit.Status == TRANSFER_ACCEPTED {
-		fmt.Printf("L/C transfer for trade %s already accepted", args[0])
+		fmt.Printf("L/C transfer for trade %s already accepted\n", args[0])
 	} else {
-		// Lookup account balances
-		expBalBytes, err = stub.GetState(expBalKey)
-		if err != nil {
-			return shim.Error(err.Error())
-		}
-		expBal, err = strconv.Atoi(string(expBalBytes))
-		if err != nil {
-			return shim.Error(err.Error())
-		}
-		lenBalBytes, err = stub.GetState(lenBalKey)
-		if err != nil {
-			return shim.Error(err.Error())
-		}
-		lenBal, err = strconv.Atoi(string(lenBalBytes))
-		if err != nil {
-			return shim.Error(err.Error())
-		}
-
-		// Record transfer of funds
-		fullRate = 1.0
-		paymentAmount = int((fullRate - letterOfCredit.DiscountRate) * float32(letterOfCredit.Amount))
-		expBal += paymentAmount
-		if lenBal < paymentAmount {
-			fmt.Printf("Lender's bank balance %d is insufficient to cover payment amount %d\n", lenBal, paymentAmount)
-		}
-		lenBal -= paymentAmount
-
-		// Update ledger state
-		err = stub.PutState(expBalKey, []byte(strconv.Itoa(expBal)))
-		if err != nil {
-			return shim.Error(err.Error())
-		}
-		err = stub.PutState(lenBalKey, []byte(strconv.Itoa(lenBal)))
-		if err != nil {
-			return shim.Error(err.Error())
-		}
-
-		// Update L/C
 		letterOfCredit.Status = TRANSFER_ACCEPTED
 		letterOfCreditBytes, err = json.Marshal(letterOfCredit)
 		if err != nil {
@@ -1170,11 +1136,207 @@ func (t *TradeWorkflowChaincode) acceptLCTransferAndMakePayment(stub shim.Chainc
 	return shim.Success(nil)
 }
 
+// Request an advance payment
+func (t *TradeWorkflowChaincode) requestAdvancePayment(stub shim.ChaincodeStubInterface, creatorOrg string, creatorCertIssuer string, args []string) pb.Response {
+	var lcKey, advancePaymentKey string
+	var letterOfCreditBytes, lenderBytes, advancePaymentBytes []byte
+	var letterOfCredit *LetterOfCredit
+	var err error
+
+	// Access control: Only an Exporter member can invoke this transaction
+	if !t.testMode && !(authenticateExporterOrg(creatorOrg, creatorCertIssuer)) {
+		return shim.Error("Caller not a member of Exporter Org. Access denied.")
+	}
+
+	if len(args) != 1 {
+		err = errors.New(fmt.Sprintf("Incorrect number of arguments. Expecting 1: {Trade ID}. Found %d", len(args)))
+		return shim.Error(err.Error())
+	}
+
+	// Lookup L/C from the ledger
+	lcKey, err = getLCKey(stub, args[0])
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+	letterOfCreditBytes, err = stub.GetState(lcKey)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	// Unmarshal the JSON
+	err = json.Unmarshal(letterOfCreditBytes, &letterOfCredit)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	// Lookup lender
+	lenderBytes, err = stub.GetState(lenKey)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	// Check if there's already a pending advance payment request
+	advancePaymentKey, err = getAdvancePaymentKey(stub, args[0])
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+	advancePaymentBytes, err = stub.GetState(advancePaymentKey)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	if len(advancePaymentBytes) != 0 {	// The value doesn't matter as this is a temporary key used as a marker
+		fmt.Printf("Advance payment request already pending for trade %s\n", args[0])
+	} else {
+		if letterOfCredit.Status != TRANSFER_ACCEPTED {
+			fmt.Printf("L/C transfer not accepted for trade %s\n", args[0])
+			return shim.Error("L/C transfer not accepted")
+		}
+		if letterOfCredit.Beneficiary != string(lenderBytes) {
+			fmt.Printf("L/C beneficiary is not lender for trade %s\n", args[0])
+			return shim.Error("L/C beneficiary not lender")
+		}
+
+		// Record request on ledger
+		err = stub.PutState(advancePaymentKey, []byte(REQUESTED))
+		if err != nil {
+			return shim.Error(err.Error())
+		}
+		fmt.Printf("Advance payment request for trade %s recorded\n", args[0])
+	}
+	return shim.Success(nil)
+}
+
+// Make an advance payment
+func (t *TradeWorkflowChaincode) makeAdvancePayment(stub shim.ChaincodeStubInterface, creatorOrg string, creatorCertIssuer string, args []string) pb.Response {
+	var lcKey, shipmentLocationKey, advancePaymentKey string
+	var paymentAmount, expBal, lenBal int
+	var fullRate float32
+	var letterOfCreditBytes, shipmentLocationBytes, advancePaymentBytes, lenderBytes, expBalBytes, lenBalBytes []byte
+	var letterOfCredit *LetterOfCredit
+	var err error
+
+	// Access control: Only an Lender Org member can invoke this transaction
+	if !t.testMode && !authenticateLenderOrg(creatorOrg, creatorCertIssuer) {
+		return shim.Error("Caller not a member of Lender Org. Access denied.")
+	}
+
+	if len(args) != 1 {
+		err = errors.New(fmt.Sprintf("Incorrect number of arguments. Expecting 1: {Trade ID}. Found %d", len(args)))
+		return shim.Error(err.Error())
+	}
+
+	// Check if there's already a pending advance payment request
+	advancePaymentKey, err = getAdvancePaymentKey(stub, args[0])
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+	advancePaymentBytes, err = stub.GetState(advancePaymentKey)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	if len(advancePaymentBytes) == 0 {
+		fmt.Printf("No advance payment request found for trade %s\n", args[0])
+		return shim.Error("No advance payment request found")
+	}
+
+	// Lookup L/C from the ledger
+	lcKey, err = getLCKey(stub, args[0])
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+	letterOfCreditBytes, err = stub.GetState(lcKey)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	// Unmarshal the JSON
+	err = json.Unmarshal(letterOfCreditBytes, &letterOfCredit)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	// Lookup lender
+	lenderBytes, err = stub.GetState(lenKey)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	if letterOfCredit.Beneficiary != string(lenderBytes) {
+		fmt.Printf("L/C beneficiary is not lender for trade %s\n", args[0])
+		return shim.Error("L/C beneficiary not lender")
+	}
+
+	// Lookup shipment location from the ledger
+	shipmentLocationKey, err = getShipmentLocationKey(stub, args[0])
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	shipmentLocationBytes, err = stub.GetState(shipmentLocationKey)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	if len(shipmentLocationBytes) == 0 {
+		fmt.Printf("Shipment for trade %s has not been prepared yet\n", args[0])
+		return shim.Error("Shipment not prepared yet")
+	}
+
+	// Lookup account balances
+	expBalBytes, err = stub.GetState(expBalKey)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+	expBal, err = strconv.Atoi(string(expBalBytes))
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+	lenBalBytes, err = stub.GetState(lenBalKey)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+	lenBal, err = strconv.Atoi(string(lenBalBytes))
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	// Record transfer of funds
+	fullRate = 1.0
+	paymentAmount = int((fullRate - letterOfCredit.DiscountRate) * float32(letterOfCredit.Amount))
+	expBal += paymentAmount
+	if lenBal < paymentAmount {
+		fmt.Printf("Lender's bank balance %d is insufficient to cover payment amount %d\n", lenBal, paymentAmount)
+	}
+	lenBal -= paymentAmount
+
+	// Update ledger state
+	err = stub.PutState(expBalKey, []byte(strconv.Itoa(expBal)))
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+	err = stub.PutState(lenBalKey, []byte(strconv.Itoa(lenBal)))
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	// Delete request key from ledger
+	err = stub.DelState(advancePaymentKey)
+	if err != nil {
+		fmt.Println(err.Error())
+		return shim.Error("Failed to delete advance payment request from ledger")
+	}
+
+	return shim.Success(nil)
+}
+
 // Request a payment
 func (t *TradeWorkflowChaincode) requestPayment(stub shim.ChaincodeStubInterface, creatorOrg string, creatorCertIssuer string, args []string) pb.Response {
-	var shipmentLocationKey, paymentKey, tradeKey string
-	var shipmentLocationBytes, paymentBytes, tradeAgreementBytes []byte
+	var lcKey, shipmentLocationKey, paymentKey, tradeKey string
+	var letterOfCreditBytes, shipmentLocationBytes, paymentBytes, exporterBytes, lenderBytes, tradeAgreementBytes []byte
 	var tradeAgreement *TradeAgreement
+	var letterOfCredit *LetterOfCredit
 	var err error
 
 	// Access control: Only an Exporter or Lender Org member can invoke this transaction
@@ -1208,6 +1370,34 @@ func (t *TradeWorkflowChaincode) requestPayment(stub shim.ChaincodeStubInterface
 		return shim.Error(err.Error())
 	}
 
+	// Lookup L/C from the ledger
+	lcKey, err = getLCKey(stub, args[0])
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+	letterOfCreditBytes, err = stub.GetState(lcKey)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	// Unmarshal the JSON
+	err = json.Unmarshal(letterOfCreditBytes, &letterOfCredit)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	// Lookup exporter
+	exporterBytes, err = stub.GetState(expKey)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	// Lookup lender
+	lenderBytes, err = stub.GetState(lenKey)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
 	// Lookup shipment location from the ledger
 	shipmentLocationKey, err = getShipmentLocationKey(stub, args[0])
 	if err != nil {
@@ -1220,7 +1410,7 @@ func (t *TradeWorkflowChaincode) requestPayment(stub shim.ChaincodeStubInterface
 	}
 
 	if len(shipmentLocationBytes) == 0 {
-		fmt.Printf("Shipment for trade %s has not been prepared yet", args[0])
+		fmt.Printf("Shipment for trade %s has not been prepared yet\n", args[0])
 		return shim.Error("Shipment not prepared yet")
 	}
 
@@ -1246,6 +1436,14 @@ func (t *TradeWorkflowChaincode) requestPayment(stub shim.ChaincodeStubInterface
 		if string(shipmentLocationBytes) == SOURCE && tradeAgreement.Payment != 0 {	// Suppress duplicate requests for partial payment
 			fmt.Printf("Partial payment already made for trade %s\n", args[0])
 			return shim.Error("Partial payment already made")
+		}
+		if !(letterOfCredit.Status == ACCEPTED || letterOfCredit.Status == TRANSFER_ACCEPTED) {
+			fmt.Printf("L/C not accepted for trade %s\n", args[0])
+			return shim.Error("L/C not accepted")
+		}
+		if !t.testMode && !((authenticateExporterOrg(creatorOrg, creatorCertIssuer) && letterOfCredit.Beneficiary == string(exporterBytes)) || (authenticateLenderOrg(creatorOrg, creatorCertIssuer) && letterOfCredit.Beneficiary == string(lenderBytes))) {
+			fmt.Printf("Payment requestor and L/C benificiary not match for trade %s\n", args[0])
+			return shim.Error("Payment requestor and L/C benificiary not match")
 		}
 
 		// Record request on ledger
@@ -1288,7 +1486,7 @@ func (t *TradeWorkflowChaincode) makePayment(stub shim.ChaincodeStubInterface, c
 	}
 
 	if len(paymentBytes) == 0 {
-		fmt.Printf("No payment request found for trade %s", args[0])
+		fmt.Printf("No payment request found for trade %s\n", args[0])
 		return shim.Error("No payment request found")
 	}
 
@@ -1353,7 +1551,7 @@ func (t *TradeWorkflowChaincode) makePayment(stub shim.ChaincodeStubInterface, c
 	}
 
 	if len(shipmentLocationBytes) == 0 {
-		fmt.Printf("Shipment for trade %s has not been prepared yet", args[0])
+		fmt.Printf("Shipment for trade %s has not been prepared yet\n", args[0])
 		return shim.Error("Shipment not prepared yet")
 	}
 
@@ -1391,12 +1589,12 @@ func (t *TradeWorkflowChaincode) makePayment(stub shim.ChaincodeStubInterface, c
 	}
 	tradeAgreement.Payment += paymentAmount
 	letterOfCredit.Amount -= paymentAmount
-	if string(exporterBytes) == letterOfCredit.Beneficiary {
+	if letterOfCredit.Beneficiary == string(exporterBytes) {
 		expBal += paymentAmount
-	} else if string(lenderBytes) == letterOfCredit.Beneficiary {
+	} else if letterOfCredit.Beneficiary == string(lenderBytes) {
 		lenBal += paymentAmount
 	} else {
-		fmt.Printf("L/C for trade %s does not have vaild beneficiary (exporter: %s, lender: %s, current: %s)", args[0], string(exporterBytes), string(lenderBytes), letterOfCredit.Beneficiary)
+		fmt.Printf("L/C for trade %s does not have vaild beneficiary\n", args[0])
 		return shim.Error("Beneficiary in L/C not valid")
 	}
 	if impBal < paymentAmount {
@@ -1472,11 +1670,11 @@ func (t *TradeWorkflowChaincode) updateShipmentLocation(stub shim.ChaincodeStubI
 	}
 
 	if len(shipmentLocationBytes) == 0 {
-		fmt.Printf("Shipment for trade %s has not been prepared yet", args[0])
+		fmt.Printf("Shipment for trade %s has not been prepared yet\n", args[0])
 		return shim.Error("Shipment not prepared yet")
 	}
 	if string(shipmentLocationBytes) == args[1] {
-		fmt.Printf("Shipment for trade %s is already in location %s", args[0], args[1])
+		fmt.Printf("Shipment for trade %s is already in location %s\n", args[0], args[1])
 	}
 
 	// Write the state to the ledger
@@ -1764,6 +1962,6 @@ func main() {
 	twc.testMode = true
 	err := shim.Start(twc)
 	if err != nil {
-		fmt.Printf("Error starting Trade Workflow chaincode: %s", err)
+		fmt.Printf("Error starting Trade Workflow chaincode: %s\n", err)
 	}
 }
