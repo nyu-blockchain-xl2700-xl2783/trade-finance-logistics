@@ -1527,6 +1527,11 @@ func (t *TradeWorkflowChaincode) makePayment(stub shim.ChaincodeStubInterface, c
 		return shim.Error(err.Error())
 	}
 
+	if !(letterOfCredit.Status == ACCEPTED || letterOfCredit.Status == TRANSFER_ACCEPTED) {
+		fmt.Printf("L/C not accepted for trade %s\n", args[0])
+		return shim.Error("L/C not accepted")
+	}
+
 	// Lookup exporter
 	exporterBytes, err = stub.GetState(expKey)
 	if err != nil {
