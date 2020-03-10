@@ -56,7 +56,7 @@ var FIVE_ORG_MEMBERS_AND_ADMIN = [{
 }, {
 	role: {
 		name: 'member',
-		mspId: 'ExportingEntityOrgMSP'
+		mspId: 'LenderOrgMSP'
 	}
 }, {
 	role: {
@@ -127,7 +127,7 @@ var channelConfig = 'channel-artifacts/channel.tx';
 
 var IMPORTER_ORG = 'importerorg';
 var EXPORTER_ORG = 'exporterorg';
-var EXPORTING_ENTITY_ORG = 'exportingentityorg';
+var LENDER_ORG = 'lenderorg';
 var CARRIER_ORG = 'carrierorg';
 var REGULATOR_ORG = 'regulatororg';
 
@@ -149,7 +149,7 @@ module.exports = {
 	channelConfig: channelConfig,
 	IMPORTER_ORG: IMPORTER_ORG,
 	EXPORTER_ORG: EXPORTER_ORG,
-	EXPORTING_ENTITY_ORG: EXPORTING_ENTITY_ORG,
+	LENDER_ORG: LENDER_ORG,
 	CARRIER_ORG: CARRIER_ORG,
 	REGULATOR_ORG: REGULATOR_ORG,
 	CHANNEL_NAME: CHANNEL_NAME,

@@ -45,7 +45,7 @@ invokeCC.invokeChaincode(Constants.IMPORTER_ORG, Constants.CHAINCODE_VERSION, 'r
 	console.log('\n');
 
 	// QUERY: getTradeStatus (Exporter)
-	return queryCC.queryChaincode(Constants.EXPORTING_ENTITY_ORG, Constants.CHAINCODE_VERSION, 'getTradeStatus', [tradeID], 'ExportingEntity', Constants);
+	return queryCC.queryChaincode(Constants.EXPORTER_ORG, Constants.CHAINCODE_VERSION, 'getTradeStatus', [tradeID], 'Exporter', Constants);
 }, (err) => {
 	console.log('\n');
 	console.log('-----------------------------');
@@ -64,7 +64,7 @@ invokeCC.invokeChaincode(Constants.IMPORTER_ORG, Constants.CHAINCODE_VERSION, 'r
 	console.log('\n');
 
 	// INVOKE: acceptTrade (Exporter)
-	return invokeCC.invokeChaincode(Constants.EXPORTING_ENTITY_ORG, Constants.CHAINCODE_VERSION, 'acceptTrade', [tradeID], 'ExportingEntity', Constants);
+	return invokeCC.invokeChaincode(Constants.EXPORTER_ORG, Constants.CHAINCODE_VERSION, 'acceptTrade', [tradeID], 'Exporter', Constants);
 }, (err) => {
 	console.log('\n');
 	console.log('------------------------');
@@ -216,7 +216,7 @@ invokeCC.invokeChaincode(Constants.IMPORTER_ORG, Constants.CHAINCODE_VERSION, 'r
 	console.log('\n');
 
 	// INVOKE: requestEL (Exporter)
-	return invokeCC.invokeChaincode(Constants.EXPORTING_ENTITY_ORG, Constants.CHAINCODE_VERSION, 'requestEL', [tradeID], 'ExportingEntity', Constants);
+	return invokeCC.invokeChaincode(Constants.EXPORTER_ORG, Constants.CHAINCODE_VERSION, 'requestEL', [tradeID], 'Exporter', Constants);
 }, (err) => {
 	console.log('\n');
 	console.log('------------------------');
@@ -235,7 +235,7 @@ invokeCC.invokeChaincode(Constants.IMPORTER_ORG, Constants.CHAINCODE_VERSION, 'r
 	console.log('\n');
 
 	// QUERY: getELStatus (Exporter)
-	return queryCC.queryChaincode(Constants.EXPORTING_ENTITY_ORG, Constants.CHAINCODE_VERSION, 'getELStatus', [tradeID], 'ExportingEntity', Constants);
+	return queryCC.queryChaincode(Constants.EXPORTER_ORG, Constants.CHAINCODE_VERSION, 'getELStatus', [tradeID], 'Exporter', Constants);
 }, (err) => {
 	console.log('\n');
 	console.log('-----------------------------');
@@ -273,7 +273,7 @@ invokeCC.invokeChaincode(Constants.IMPORTER_ORG, Constants.CHAINCODE_VERSION, 'r
 	console.log('\n');
 
 	// QUERY: getELStatus (Exporter)
-	return queryCC.queryChaincode(Constants.EXPORTING_ENTITY_ORG, Constants.CHAINCODE_VERSION, 'getELStatus', [tradeID], 'ExportingEntity', Constants);
+	return queryCC.queryChaincode(Constants.EXPORTER_ORG, Constants.CHAINCODE_VERSION, 'getELStatus', [tradeID], 'Exporter', Constants);
 }, (err) => {
 	console.log('\n');
 	console.log('-----------------------------');
@@ -292,7 +292,7 @@ invokeCC.invokeChaincode(Constants.IMPORTER_ORG, Constants.CHAINCODE_VERSION, 'r
 	console.log('\n');
 
 	// INVOKE: prepareShipment (Exporter)
-	return invokeCC.invokeChaincode(Constants.EXPORTING_ENTITY_ORG, Constants.CHAINCODE_VERSION, 'prepareShipment', [tradeID], 'ExportingEntity', Constants);
+	return invokeCC.invokeChaincode(Constants.EXPORTER_ORG, Constants.CHAINCODE_VERSION, 'prepareShipment', [tradeID], 'Exporter', Constants);
 }, (err) => {
 	console.log('\n');
 	console.log('------------------------');
@@ -349,7 +349,7 @@ invokeCC.invokeChaincode(Constants.IMPORTER_ORG, Constants.CHAINCODE_VERSION, 'r
 	console.log('\n');
 
 	// QUERY: getBillOfLading (Exporter)
-	return queryCC.queryChaincode(Constants.EXPORTING_ENTITY_ORG, Constants.CHAINCODE_VERSION, 'getBillOfLading', [tradeID], 'ExportingEntity', Constants);
+	return queryCC.queryChaincode(Constants.EXPORTER_ORG, Constants.CHAINCODE_VERSION, 'getBillOfLading', [tradeID], 'Exporter', Constants);
 }, (err) => {
 	console.log('\n');
 	console.log('-----------------------------');
@@ -368,7 +368,7 @@ invokeCC.invokeChaincode(Constants.IMPORTER_ORG, Constants.CHAINCODE_VERSION, 'r
 	console.log('\n');
 
 	// INVOKE: requestPayment (Exporter)
-	return invokeCC.invokeChaincode(Constants.EXPORTING_ENTITY_ORG, Constants.CHAINCODE_VERSION, 'requestPayment', [tradeID], 'ExportingEntity', Constants);
+	return invokeCC.invokeChaincode(Constants.EXPORTER_ORG, Constants.CHAINCODE_VERSION, 'requestPayment', [tradeID], 'Exporter', Constants);
 }, (err) => {
 	console.log('\n');
 	console.log('------------------------');
@@ -406,7 +406,7 @@ invokeCC.invokeChaincode(Constants.IMPORTER_ORG, Constants.CHAINCODE_VERSION, 'r
 	console.log('\n');
 
 	// QUERY: getAccountBalance (Exporter)
-	return queryCC.queryChaincode(Constants.EXPORTING_ENTITY_ORG, Constants.CHAINCODE_VERSION, 'getAccountBalance', [tradeID, 'exporter'], 'ExportingEntity', Constants);
+	return queryCC.queryChaincode(Constants.EXPORTER_ORG, Constants.CHAINCODE_VERSION, 'getAccountBalance', [tradeID, 'exporter'], 'Exporter', Constants);
 }, (err) => {
 	console.log('\n');
 	console.log('------------------------');
@@ -482,7 +482,7 @@ invokeCC.invokeChaincode(Constants.IMPORTER_ORG, Constants.CHAINCODE_VERSION, 'r
 	console.log('\n');
 
 	// INVOKE: requestPayment (Exporter)
-	return invokeCC.invokeChaincode(Constants.EXPORTING_ENTITY_ORG, Constants.CHAINCODE_VERSION, 'requestPayment', [tradeID], 'ExportingEntity', Constants);
+	return invokeCC.invokeChaincode(Constants.EXPORTER_ORG, Constants.CHAINCODE_VERSION, 'requestPayment', [tradeID], 'Exporter', Constants);
 }, (err) => {
 	console.log('\n');
 	console.log('------------------------');
@@ -520,7 +520,7 @@ invokeCC.invokeChaincode(Constants.IMPORTER_ORG, Constants.CHAINCODE_VERSION, 'r
 	console.log('\n');
 
 	// QUERY: getAccountBalance (Exporter)
-	return queryCC.queryChaincode(Constants.EXPORTING_ENTITY_ORG, Constants.CHAINCODE_VERSION, 'getAccountBalance', [tradeID, 'exporter'], 'ExportingEntity', Constants);
+	return queryCC.queryChaincode(Constants.EXPORTER_ORG, Constants.CHAINCODE_VERSION, 'getAccountBalance', [tradeID, 'exporter'], 'Exporter', Constants);
 }, (err) => {
 	console.log('\n');
 	console.log('------------------------');

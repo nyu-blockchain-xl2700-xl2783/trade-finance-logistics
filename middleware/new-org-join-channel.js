@@ -26,7 +26,7 @@ Constants.networkConfig = './config_upgrade.json';	// Use the augmented configur
 Client.addConfigFile(path.join(__dirname, Constants.networkConfig));
 var ORGS = Client.getConfigSetting(Constants.networkId);
 
-joinChannel.joinChannel('exportingentityorg', ORGS, Constants).then(() => {
+joinChannel.joinChannel('lenderorg', ORGS, Constants).then(() => {
 	console.log('\n');
 	console.log('----------------------------------');
 	console.log('CHANNEL JOIN FOR NEW ORG COMPLETE');

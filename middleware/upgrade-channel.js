@@ -128,15 +128,15 @@ function upgradeChannel(channel_name, constants) {
 		cproc.execSync('configtxlator proto_decode --input ./tmp/config.pb --type common.Config | jq . > ./tmp/config.json');
 
 		// Append new organization configuration to current configuration
-		cproc.execSync('jq -s \'.[0] * {"channel_group":{"groups":{"Application":{"groups": {"ExportingEntityOrgMSP":.[1]}}}}}\' ./tmp/config.json ../network/channel-artifacts/exportingEntityOrg.json > ./tmp/modified_config.json');
+		cproc.execSync('jq -s \'.[0] * {"channel_group":{"groups":{"Application":{"groups": {"ExportingEntityOrgMSP":.[1]}}}}}\' ./tmp/config.json ../network/channel-artifacts/lenderOrg.json > ./tmp/modified_config.json');
 
 		// Encode the new configuration into protobuf
 		cproc.execSync('configtxlator proto_encode --input ./tmp/modified_config.json --type common.Config --output ./tmp/modified_config.pb');
 
 		// Compute the delta (difference) between current channel config and the new config we have created
-		cproc.execSync('configtxlator compute_update --channel_id ' + channel_name + ' --original ./tmp/config.pb --updated ./tmp/modified_config.pb --output ./tmp/exportingEntityOrg_update.pb');
+		cproc.execSync('configtxlator compute_update --channel_id ' + channel_name + ' --original ./tmp/config.pb --updated ./tmp/modified_config.pb --output ./tmp/lenderOrg_update.pb');
 
-		config = fs.readFileSync('./tmp/exportingEntityOrg_update.pb');
+		config = fs.readFileSync('./tmp/lenderOrg_update.pb');
 		console.log('Successfully created the config update');
 
 		var enrollmentAndSignPromises = [];
