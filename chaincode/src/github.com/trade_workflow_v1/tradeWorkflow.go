@@ -370,7 +370,7 @@ func (t *TradeWorkflowChaincode) requestLC(stub shim.ChaincodeStubInterface, cre
 		return shim.Error(err.Error())
 	}
 
-	letterOfCredit = &LetterOfCredit{"", "", string(exporterBytes), tradeAgreement.Amount, []string{}, REQUESTED, 0.0}
+	letterOfCredit = &LetterOfCredit{"", "", string(exporterBytes), tradeAgreement.Amount, []string{}, REQUESTED, 0.0, false}
 	letterOfCreditBytes, err = json.Marshal(letterOfCredit)
 	if err != nil {
 		return shim.Error("Error marshaling letter of credit structure")
@@ -1197,6 +1197,10 @@ func (t *TradeWorkflowChaincode) requestAdvancePayment(stub shim.ChaincodeStubIn
 			fmt.Printf("L/C beneficiary is not lender for trade %s\n", args[0])
 			return shim.Error("L/C beneficiary not lender")
 		}
+		if letterOfCredit.AdvancePaymentSettlement == true { // Advance payment has already been settled
+			fmt.Printf("Advance payment already settled for trade %s\n", args[0])
+			return shim.Error("Advance payment already settled")
+		}
 
 		// Record request on ledger
 		err = stub.PutState(advancePaymentKey, []byte(REQUESTED))
@@ -1317,8 +1321,17 @@ func (t *TradeWorkflowChaincode) makeAdvancePayment(stub shim.ChaincodeStubInter
 		fmt.Printf("Lender's bank balance %d is insufficient to cover payment amount %d\n", lenBal, paymentAmount)
 	}
 	lenBal -= paymentAmount
+	letterOfCredit.AdvancePaymentSettlement = true
 
 	// Update ledger state
+	letterOfCreditBytes, err = json.Marshal(letterOfCredit)
+	if err != nil {
+		return shim.Error("Error marshaling L/C structure")
+	}
+	err = stub.PutState(lcKey, letterOfCreditBytes)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
 	err = stub.PutState(expBalKey, []byte(strconv.Itoa(expBal)))
 	if err != nil {
 		return shim.Error(err.Error())
@@ -1465,18 +1478,15 @@ func (t *TradeWorkflowChaincode) requestPayment(stub shim.ChaincodeStubInterface
 
 // Make a payment
 func (t *TradeWorkflowChaincode) makePayment(stub shim.ChaincodeStubInterface, creatorOrg string, creatorCertIssuer string, args []string) pb.Response {
-	var lcKey, shipmentLocationKey, paymentKey, tradeKey string
-	var paymentAmount, expBal, impBal, lenBal int
-	var letterOfCreditBytes, shipmentLocationBytes, paymentBytes, tradeAgreementBytes, exporterBytes, lenderBytes, impBalBytes, expBalBytes, lenBalBytes []byte
+	var lcKey, shipmentLocationKey, arrivalDateKey, paymentKey, tradeKey, referDate string
+	var paymentAmount, expBal, impBal, lenBal, paymentDuration, halfPaymentDuration int
+	var letterOfCreditBytes, shipmentLocationBytes, arrivalDateBytes, paymentBytes, tradeAgreementBytes, exporterBytes, lenderBytes, impBalBytes, expBalBytes, lenBalBytes []byte
 	var letterOfCredit *LetterOfCredit
 	var tradeAgreement *TradeAgreement
 	var err error
-	var referDate string
-	var paymentDuration int
-	var halfPaymentDuration int
 
-	// refer date for date parsing
-	referDate = "2016-01-02"
+	// Refer date for date parsing
+	referDate = "01/02/2006"
 	paymentDuration = 1440
 	halfPaymentDuration = 720
 	var ad, cd time.Time
@@ -1603,47 +1613,45 @@ func (t *TradeWorkflowChaincode) makePayment(stub shim.ChaincodeStubInterface, c
 		return shim.Error(err.Error())
 	}
 
-	// Calculate days
-
-	// Get ArrivalDate
-	arrivalDateKey, err = getArrivalDateKey(stub, args[0])
-	if err != nil {
-		return shim.Error(err.Error())
-	}
-
-	arrivalDateBytes, err = stub.GetState(arrivalDateKey)
-	if err != nil {
-		return shim.Error(err.Error())
-	}
-
-	if len(arrivalDateBytes) == 0 {
-		fmt.Printf("Shipment for trade %s has not arrived yet\n", args[0])
-		return shim.Error("Shipment not arrived yet")
-	}
-
-	ad, err = time.Parse(referDate, arrivalDateBytes)
-	if err != nil {
-		return shim.Error(err.Error())
-	}
-	cd, err = time.Parse(referDate, args[1])
-	if err != nil {
-		return shim.Error(err.Error())
-	}
-	delta := cd.Sub(ad).Hours()
-	surcharge := (delta - paymentDuration) / halfPaymentDuration
-
 	// Record transfer of funds
 	if string(shipmentLocationBytes) == SOURCE {
 		paymentAmount = tradeAgreement.Amount / 2
 	} else {
-		initPaymentAmount := tradeAgreement.Amount - tradeAgreement.Payment
-		if surcharge <= 0 {
-			paymentAmount = initPaymentAmount
-		} else {
-			paymentAmount = initPaymentAmount * (1 + 0.05*surcharge)
-			fmt.Printf("Payment is increased by surcharge due to late payment after deadline\n")
+		// Get ArrivalDate
+		arrivalDateKey, err = getArrivalDateKey(stub, args[0])
+		if err != nil {
+			return shim.Error(err.Error())
 		}
 
+		arrivalDateBytes, err = stub.GetState(arrivalDateKey)
+		if err != nil {
+			return shim.Error(err.Error())
+		}
+
+		if len(arrivalDateBytes) == 0 {
+			fmt.Printf("Arrival date of shipment for trade %s missing\n", args[0])
+			return shim.Error("Arrival date missing")
+		}
+
+		// Calculate days
+		ad, err = time.Parse(referDate, string(arrivalDateBytes))
+		if err != nil {
+			return shim.Error(err.Error())
+		}
+		cd, err = time.Parse(referDate, args[1])
+		if err != nil {
+			return shim.Error(err.Error())
+		}
+		delta := cd.Sub(ad).Hours()
+		surcharge := (float32(delta) - float32(paymentDuration)) / float32(halfPaymentDuration)
+
+		initialPaymentAmount := tradeAgreement.Amount - tradeAgreement.Payment
+		if surcharge <= 0 {
+			paymentAmount = initialPaymentAmount
+		} else {
+			paymentAmount = int(float32(initialPaymentAmount) * (1.0 + 0.05 * surcharge))
+			fmt.Printf("Payment is increased by surcharge due to late payment after deadline (60 days after arrival)\n")
+		}
 	}
 
 	tradeAgreement.Payment += paymentAmount
@@ -1729,21 +1737,19 @@ func (t *TradeWorkflowChaincode) updateShipmentLocation(stub shim.ChaincodeStubI
 		return shim.Error(err.Error())
 	}
 
-	arrivalDateKey, err = stub.getArrivalDateKey(stub, args[0])
+	arrivalDateKey, err = getArrivalDateKey(stub, args[0])
 	if err != nil {
 		return shim.Error(err.Error())
 	}
 
 	if len(shipmentLocationBytes) == 0 {
-		fmt.Printf("Shipment for trade %s has not been prepared yet\n", args[0])
+		fmt.Printf("Shipment for trade %s has not been prepared yet", args[0])
 		return shim.Error("Shipment not prepared yet")
 	}
 	if string(shipmentLocationBytes) == args[1] {
-		if len(args[2]) == 0 {
-			fmt.Printf("Shipment for trade %s is already in location %s\n", args[0], args[1])
-		} else {
-			fmt.Printf("Shipment for trade %s is already in location %s on %s\n", args[0], args[1], args[2])
-
+		fmt.Printf("Shipment for trade %s is already in location %s", args[0], args[1])
+	} else {
+		if args[1] == DESTINATION {
 			err = stub.PutState(arrivalDateKey, []byte(args[2]))
 			if err != nil {
 				return shim.Error(err.Error())
@@ -2034,7 +2040,7 @@ func (t *TradeWorkflowChaincode) getAccountBalance(stub shim.ChaincodeStubInterf
 
 func main() {
 	twc := new(TradeWorkflowChaincode)
-	twc.testMode = true
+	twc.testMode = false
 	err := shim.Start(twc)
 	if err != nil {
 		fmt.Printf("Error starting Trade Workflow chaincode: %s\n", err)

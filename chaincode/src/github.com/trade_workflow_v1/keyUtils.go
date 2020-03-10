@@ -84,7 +84,7 @@ func getAdvancePaymentKey(stub shim.ChaincodeStubInterface, tradeID string) (str
 }
 
 func getArrivalDateKey(stub shim.ChaincodeStubInterface, tradeID string) (string, error) {
-	arrivalDateKey, err := stub.CreateCompositeKey("Shipment", []string{"arrivalDate", tradeID})
+	arrivalDateKey, err := stub.CreateCompositeKey("Shipment", []string{"ArrivalDate", tradeID})
 	if err != nil {
 		return "", err
 	} else {
