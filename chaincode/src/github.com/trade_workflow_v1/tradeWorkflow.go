@@ -182,6 +182,9 @@ func (t *TradeWorkflowChaincode) Invoke(stub shim.ChaincodeStubInterface) pb.Res
 	} else if function == "getShipmentLocation" {
 		// Get the shipment location
 		return t.getShipmentLocation(stub, creatorOrg, creatorCertIssuer, args)
+	} else if function == "getArrivalDate" {
+		// Get the shipment location
+		return t.getArrivalDate(stub, creatorOrg, creatorCertIssuer, args)
 	} else if function == "getBillOfLading" {
 		// Get the bill of lading
 		return t.getBillOfLading(stub, creatorOrg, creatorCertIssuer, args)
@@ -1743,11 +1746,11 @@ func (t *TradeWorkflowChaincode) updateShipmentLocation(stub shim.ChaincodeStubI
 	}
 
 	if len(shipmentLocationBytes) == 0 {
-		fmt.Printf("Shipment for trade %s has not been prepared yet", args[0])
+		fmt.Printf("Shipment for trade %s has not been prepared yet\n", args[0])
 		return shim.Error("Shipment not prepared yet")
 	}
 	if string(shipmentLocationBytes) == args[1] {
-		fmt.Printf("Shipment for trade %s is already in location %s", args[0], args[1])
+		fmt.Printf("Shipment for trade %s is already in location %s\n", args[0], args[1])
 	} else {
 		if args[1] == DESTINATION {
 			err = stub.PutState(arrivalDateKey, []byte(args[2]))
@@ -1950,6 +1953,42 @@ func (t *TradeWorkflowChaincode) getShipmentLocation(stub shim.ChaincodeStubInte
 	}
 
 	jsonResp = "{\"Location\":\"" + string(shipmentLocationBytes) + "\"}"
+	fmt.Printf("Query Response:%s\n", jsonResp)
+	return shim.Success([]byte(jsonResp))
+}
+
+// Get arrival date of a shipment
+func (t *TradeWorkflowChaincode) getArrivalDate(stub shim.ChaincodeStubInterface, creatorOrg string, creatorCertIssuer string, args []string) pb.Response {
+	var adKey, jsonResp string
+	var arrivalDateBytes []byte
+	var err error
+
+	// Access control: Only an Importer or Exporter or Lender or Carrier Org member can invoke this transaction
+	if !t.testMode && !(authenticateImporterOrg(creatorOrg, creatorCertIssuer) || authenticateExporterOrg(creatorOrg, creatorCertIssuer) || authenticateLenderOrg(creatorOrg, creatorCertIssuer) || authenticateCarrierOrg(creatorOrg, creatorCertIssuer)) {
+		return shim.Error("Caller not a member of Importer or Exporter or Exporting Entity or Carrier Org. Access denied.")
+	}
+
+	if len(args) != 1 {
+		return shim.Error("Incorrect number of arguments. Expecting 1: <trade ID>")
+	}
+
+	// Get the state from the ledger
+	adKey, err = getArrivalDateKey(stub, args[0])
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+	arrivalDateBytes, err = stub.GetState(adKey)
+	if err != nil {
+		jsonResp = "{\"Error\":\"Failed to get state for " + adKey + "\"}"
+		return shim.Error(jsonResp)
+	}
+
+	if len(arrivalDateBytes) == 0 {
+		jsonResp = "{\"Error\":\"No record found for " + adKey + "\"}"
+		return shim.Error(jsonResp)
+	}
+
+	jsonResp = "{\"ArrivalDate\":\"" + string(arrivalDateBytes) + "\"}"
 	fmt.Printf("Query Response:%s\n", jsonResp)
 	return shim.Success([]byte(jsonResp))
 }

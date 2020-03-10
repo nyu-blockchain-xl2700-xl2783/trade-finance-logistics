@@ -432,6 +432,9 @@ func TestTradeWorkflow_PaymentFulfilment(t *testing.T) {
 	adKey, _ := stub.CreateCompositeKey("Shipment", []string{"ArrivalDate", tradeID})
 	checkState(t, stub, adKey, "02/01/2019")
 
+	expectedResp = "{\"ArrivalDate\":\"02/01/2019\"}"
+	checkQuery(t, stub, "getArrivalDate", tradeID, expectedResp)
+
 	// Invoke 'requestPayment' and 'makePayment'
 	checkInvoke(t, stub, [][]byte{[]byte("requestPayment"), []byte(tradeID)})
 	checkState(t, stub, paymentKey, REQUESTED)

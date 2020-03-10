@@ -1,3 +1,4 @@
+#!/bin/bash
 
 echo -e "\nThis script restarts the network, removes ../middleware/tmp, and runs all of the steps of the Middleware exercise\n"
 sleep 3
@@ -9,12 +10,13 @@ ls
 cd $GOPATH/src/trade-finance-logistics/network
 echo -e "\nShifted to " $(pwd) " so that we can bring down and bring up the tradechannel containers"
 
-echo -e "\nRemoving ../network/add_org/docker-compose-exportingEntityOrg.yaml to have a clean start"
-rm add_org/docker-compose-exportingEntityOrg.yaml
+echo -e "\nRemoving ../network/add_org/docker-compose-lenderOrg.yaml to have a clean start"
+rm add_org/docker-compose-lenderOrg.yaml
 
 echo -e "\nNow bringing the network down and back up again\n"
 echo "Y" | ./trade.sh down
-echo -e "\nThere may be 'orphans' relating to exportingEntityOrg', so doing another sweep of the containers"
+
+echo -e "\nThere may be 'orphans' relating to lenderOrg', so doing another sweep of the containers"
 CONTAINER_IDS=$(docker ps -aq)
 if [ -z "$CONTAINER_IDS" -o "$CONTAINER_IDS" == " " ]; then
   echo "---- No orphan containers were found, and proceeding to ./trade.sh clean ----"
@@ -41,7 +43,6 @@ else
   echo -e "\nBrought the network down and there should be no active containers or volumes now"
 fi
 
-
 echo "Y" | ./trade.sh clean
 echo "Cleaned/purged the network"
 echo "Y" | ./trade.sh generate -c tradechannel
@@ -60,15 +61,12 @@ cd $GOPATH/src/trade-finance-logistics/middleware
 echo -e "\nHave now switched to " $(pwd)
 
 echo -e "\nNow launching createTradeApp.js "
-
 node createTradeApp.js
 
-echo -e "\nNow launching runTradeScenarioApp.js "
-
-node runTradeScenarioApp.js
+# echo -e "\nNow launching runTradeScenarioApp.js "
+# node runTradeScenarioApp.js
 
 echo -e "\nNow invoking ../network/.trade.sh createneworg"
-
 cd $GOPATH/src/trade-finance-logistics/network
 echo "Y" | ./trade.sh createneworg
 
@@ -86,14 +84,11 @@ echo "Y" | ./trade.sh startneworg
 echo -e "\nInvoking 'docker ps -a' to see the 2 new containers\n"
 docker ps -a
 
-
 echo -e "\nSleeping 5 seconds so that containers can come up fully; perhaps 1 second is enough"
 echo -e "Then invoking node new-org-join-channel.js in ../middleware\n"
 sleep 5
 cd $GOPATH/src/trade-finance-logistics/middleware
 node new-org-join-channel.js
-
-
 
 echo -e "\nInovking upgrade-chaincode.js to upgrade to trade_workflow_v1"
 echo -e "But again sleeping for 5 seconds because seems necessary\n"
@@ -103,8 +98,6 @@ node upgrade-chaincode.js
 echo -e "\nInvoking five-org-trade-scenario.js to test the new workflow end-to-end"
 echo -e "Again, sleeping first\n"
 sleep 5
-node five-org-trade-scenario.js
+node five-org-trade-scenario-1.js
 
-
-
-echo -e '\nFinished script'
+echo -e '\nFinished script\n'
