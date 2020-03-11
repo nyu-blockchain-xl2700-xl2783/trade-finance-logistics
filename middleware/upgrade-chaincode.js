@@ -40,7 +40,7 @@ installCC.installChaincode(Constants.CHAINCODE_UPGRADE_PATH, Constants.CHAINCODE
 		Constants.CHAINCODE_UPGRADE_PATH,
 		Constants.CHAINCODE_UPGRADE_VERSION,
 		'init',
-		['LumberInc', 'LumberBank', '100000', 'WoodenToys', 'ToyBank', '200000', 'LenderInc', 'LenderBank', '300000', 'UniversalFrieght', 'ForestryDepartment'],
+		['LumberInc', 'LumberBank', '100000', 'WoodenToys', 'ToyBank', '300000', 'LenderInc', 'LenderBank', '100000', 'UniversalFrieght', 'ForestryDepartment'],
 		true,
 		Constants
 	);
