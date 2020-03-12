@@ -95,9 +95,9 @@ echo -e "But again sleeping for 5 seconds because seems necessary\n"
 sleep 5
 node upgrade-chaincode.js
 
-echo -e "\nInvoking five-org-trade-scenario.js to test the new workflow end-to-end"
-echo -e "Again, sleeping first\n"
-sleep 5
-node five-org-trade-scenario-1.js
+# echo -e "\nInvoking five-org-trade-scenario.js to test the new workflow end-to-end"
+# echo -e "Again, sleeping first\n"
+# sleep 5
+# node five-org-trade-scenario-1.js
 
 echo -e '\nFinished script\n'

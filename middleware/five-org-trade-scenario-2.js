@@ -663,7 +663,7 @@ invokeCC.invokeChaincode(Constants.IMPORTER_ORG, Constants.CHAINCODE_VERSION, 'r
 	console.log('\n');
 	process.exit(1);
 })
-.then((resulte) => {
+.then((result) => {
 	console.log('\n');
 	console.log('------------------------------');
 	console.log('CHAINCODE QUERY COMPLETE');

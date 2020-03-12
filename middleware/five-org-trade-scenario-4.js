@@ -25,7 +25,7 @@ var instantiateCC = require('./instantiate-chaincode.js');
 var invokeCC = require('./invoke-chaincode.js');
 var queryCC = require('./query-chaincode.js');
 
-var tradeID = 'ajd8v9s';
+var tradeID = 'dfo4sng';
 
 Constants.networkConfig = './config_upgrade.json';	// Use the augmented configuration
 Constants.TRANSACTION_ENDORSEMENT_POLICY = Constants.ALL_FIVE_ORG_MEMBERS;	// Use the updated endorsement policy
@@ -663,7 +663,7 @@ invokeCC.invokeChaincode(Constants.IMPORTER_ORG, Constants.CHAINCODE_VERSION, 'r
 	console.log('\n');
 	process.exit(1);
 })
-.then((resulte) => {
+.then((result) => {
 	console.log('\n');
 	console.log('------------------------------');
 	console.log('CHAINCODE QUERY COMPLETE');
